@@ -152,6 +152,7 @@ if [[ "$INSTALL_MODE" != "node" ]]; then
   export XRAY_PIK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 | head -n1 | cut -d' ' -f 2)
   export XRAY_PBK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 -i $XRAY_PIK | tail -2 | head -1 | cut -d' ' -f 3)
   export XRAY_UUID=$(docker run --rm ghcr.io/xtls/xray-core uuid)
+  export XHTTP_PATH=$(openssl rand -hex 8)
 fi
 
 # Install marzban
@@ -176,11 +177,11 @@ xray_setup() {
     wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-marzban | envsubst > ./docker-compose.yml
     wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/marzban | envsubst > ./marzban/.env
     wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie-marzban" | envsubst '$VLESS_DOMAIN $MARZBAN_PATH $MARZBAN_SUB_PATH' > ./angie.conf
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray" | envsubst > ./marzban/xray_config.json
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./marzban/xray_config.json
   else
-    mkdir -p /opt/xray-vps-setup/xray
+   mkdir -p /opt/xray-vps-setup/xray
     wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-xray | envsubst > ./docker-compose.yml
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray" | envsubst > ./xray/config.json
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./xray/config.json
     wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
   fi
 }
@@ -523,11 +524,94 @@ User: $MARZBAN_USER
 Password: $MARZBAN_PASS
     "
   else
-    xray_config=$(wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_outbound" | envsubst)
-    singbox_config=$(wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/sing_box_outbound" | envsubst)
+    xray_config=$(cat <<EOF
+{
+  "tag": "default",
+  "protocol": "vless",
+  "settings": {
+    "vnext": [
+      {
+        "address": "$VLESS_DOMAIN",
+        "port": 443,
+        "users": [
+          {
+            "id": "$XRAY_UUID",
+            "encryption": "none",
+            "flow": "xtls-rprx-vision"
+          }
+        ]
+      }
+    ]
+  },
+  "streamSettings": {
+    "network": "xhttp",
+    "security": "reality",
+    "realitySettings": {
+      "serverName": "$VLESS_DOMAIN",
+      "fingerprint": "chrome",
+      "publicKey": "$XRAY_PBK",
+      "shortId": ""
+    },
+    "xhttpSettings": {
+      "path": "/$XHTTP_PATH",
+      "mode": "auto",
+      "extra": {
+        "downloadSettings": {
+          "type": "http"
+        },
+        "uploadSettings": {
+          "type": "http"
+        }
+      }
+    }
+  }
+}
+EOF
+)
+    singbox_config=$(cat <<EOF
+{
+  "type": "vless",
+  "server": "$VLESS_DOMAIN",
+  "server_port": 443,
+  "uuid": "$XRAY_UUID",
+  "flow": "xtls-rprx-vision",
+  "tls": {
+    "enabled": true,
+    "insecure": false,
+    "server_name": "$VLESS_DOMAIN",
+    "utls": {
+      "enabled": true,
+      "fingerprint": "chrome"
+    },
+    "reality": {
+      "enabled": true,
+      "public_key": "$XRAY_PBK",
+      "short_id": ""
+    }
+  },
+  "transport": {
+    "type": "xhttp",
+    "path": "/$XHTTP_PATH",
+    "method": "POST",
+    "max_early_data": 256,
+    "early_data_header_name": "Sec-WebSocket-Protocol",
+    "extra": {
+      "download": {
+        "type": "http"
+      },
+      "upload": {
+        "type": "http"
+      }
+    }
+  }
+}
+EOF
+)
 
-    final_msg="Clipboard string format:
-vless://$XRAY_UUID@$VLESS_DOMAIN:443?type=tcp&security=reality&pbk=$XRAY_PBK&fp=chrome&sni=$VLESS_DOMAIN&sid=&spx=%2F&flow=xtls-rprx-vision#Script
+    final_msg="XHTTP + Reality configuration:
+
+Clipboard string:
+vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&type=xhttp&path=/$XHTTP_PATH&mode=auto#XHTTP_$VLESS_DOMAIN
 
 XRay outbound config:
 $xray_config
@@ -536,7 +620,9 @@ Sing-box outbound config:
 $singbox_config
 
 Plain data:
-PBK: $XRAY_PBK, UUID: $XRAY_UUID
+PBK: $XRAY_PBK
+UUID: $XRAY_UUID
+XHTTP Path: /$XHTTP_PATH
     "
   fi
 
