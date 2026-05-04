@@ -76,8 +76,8 @@
   },
   "dns": {
     "servers": [
-      "1.1.1.1",
-      "8.8.8.8"
+      "8.8.8.8",
+      "1.1.1.1"
     ],
     "queryStrategy": "UseIPv4",
     "disableFallback": false,
