@@ -444,8 +444,10 @@ warp_install() {
     warp-cli connect
     if [[ "${marzban_input,,}" == "y" ]]; then
       export XRAY_CONFIG_WARP="/opt/xray-vps-setup/marzban/xray_config.json"
+      replace_geo_files "/opt/xray-vps-setup/xray-core"
     else
       export XRAY_CONFIG_WARP="/opt/xray-vps-setup/xray/config.json"
+      replace_geo_files "/opt/xray-vps-setup/xray"
     fi
     yq eval \
     '.outbounds += {"tag": "warp","protocol": "socks","settings": {"servers": [{"address": "127.0.0.1","port": 40000}]}}' \
@@ -455,6 +457,23 @@ warp_install() {
     -i $XRAY_CONFIG_WARP
     docker compose -f /opt/xray-vps-setup/docker-compose.yml down && docker compose -f /opt/xray-vps-setup/docker-compose.yml up -d
   fi
+}
+
+replace_geo_files() {
+    local target_dir=$1
+    echo "Скачивание кастомных geo-файлов в $target_dir..."
+    
+    if wget -qO "${target_dir}/geoip.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geoip.dat"; then
+        echo "✓ geoip.dat заменён успешно"
+    else
+        echo "Ошибка замены geoip.dat"
+    fi
+    
+    if wget -qO "${target_dir}/geosite.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geosite.dat"; then
+        echo "✓ geosite.dat заменён успешно"
+    else
+        echo "Ошибка замены geosite.dat"
+    fi
 }
 
 end_script() {
