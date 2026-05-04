@@ -1,8 +1,5 @@
 # xray-vps-setup
-VLESS со своим доменом. А что еще нужно для счастья?  
-
-> [!IMPORTANT]
-> Дайте секс
+VLESS с доменом. XHttp?  
 
 В данном варианте VLESS слушает на 443 и принимате все запросы, делая запрос на локальный Angie(форк nginx) только для сертификатов. В таком варианте задержка будет меньше, чем в варианте с Caddy/NGINX перед VLESS, где происходит множество лишних запросов. 
 ## Скрипт
@@ -15,7 +12,7 @@ VLESS со своим доменом. А что еще нужно для сча�
 - - Настроит WARP для ру-сайтов.  
 ```bash
 tmux
-bash <(wget -qO- https://raw.githubusercontent.com/Akiyamov/xray-vps-setup/refs/heads/main/vps-setup.sh)
+bash <(wget -qO- https://raw.githubusercontent.com/d010b/xray-vps-setup/main/vps-setup.sh)
 ```
 
 ## Плейбук
