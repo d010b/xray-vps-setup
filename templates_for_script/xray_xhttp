@@ -9,13 +9,7 @@
       "port": 443,
       "protocol": "vless",
       "settings": {
-        "clients": [
-          {
-            "id": "$XRAY_UUID",
-            "email": "default",
-            "flow": "xtls-rprx-vision"
-          }
-        ],
+        "clients": [],
         "decryption": "none"
       },
       "streamSettings": {
@@ -28,21 +22,14 @@
             "$VLESS_DOMAIN"
           ],
           "privateKey": "$XRAY_PIK",
+          "publicKey": "$XRAY_PBK",
           "shortIds": [
             ""
           ]
         },
         "xhttpSettings": {
           "path": "/$XHTTP_PATH",
-          "mode": "auto",
-          "extra": {
-            "downloadSettings": {
-              "type": "http"
-            },
-            "uploadSettings": {
-              "type": "http"
-            }
-          }
+          "mode": "auto"
         }
       },
       "sniffing": {
@@ -55,32 +42,7 @@
   "outbounds": [
     {
       "protocol": "freedom",
-      "tag": "direct",
-      "settings": {
-        "domainStrategy": "UseIPv4"
-      }
-    },
-    {
-      "protocol": "blackhole",
-      "tag": "block"
+      "tag": "direct"
     }
-  ],
-  "routing": {
-    "rules": [
-      {
-        "protocol": "bittorrent",
-        "outboundTag": "block"
-      }
-    ],
-    "domainStrategy": "IPIfNonMatch"
-  },
-  "dns": {
-    "servers": [
-      "8.8.8.8",
-      "1.1.1.1"
-    ],
-    "queryStrategy": "UseIPv4",
-    "disableFallback": false,
-    "tag": "dns-aux"
-  }
+  ]
 }
