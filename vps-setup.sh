@@ -573,15 +573,8 @@ Password: $MARZBAN_PASS
     },
     "xhttpSettings": {
       "path": "/$XHTTP_PATH",
-      "mode": "auto",
-      "extra": {
-        "downloadSettings": {
-          "type": "http"
-        },
-        "uploadSettings": {
-          "type": "http"
-        }
-      }
+      "mode": "auto"
+       }
     }
   }
 }
