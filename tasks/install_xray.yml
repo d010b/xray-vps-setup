@@ -4,6 +4,8 @@
     state: directory
   loop:
     - /opt/xray-vps-setup/xray
+    - /var/www
+
 - name: Copy config files
   ansible.builtin.template:
     src: "{{ item.src }}"
@@ -13,3 +15,7 @@
     - { src: "confluence.j2", dest: "/opt/xray-vps-setup/index.html" }
     - { src: "xray.json.j2", dest: "/opt/xray-vps-setup/xray/config.json" }
     - { src: "docker_compose.yml.j2", dest: "/opt/xray-vps-setup/docker-compose.yml" }
+
+- name: Setup authentication for Confluence page
+  include_tasks: setup_auth.yml
+  when: protect_confluence | default(true)
