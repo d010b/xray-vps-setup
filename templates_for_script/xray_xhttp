@@ -29,7 +29,14 @@
         },
         "xhttpSettings": {
           "path": "/$XHTTP_PATH",
-          "mode": "auto"
+          "mode": "auto",
+          "extra": {
+            "download": {
+              "type": "http"
+            },
+            "upload": {
+              "type": "http"
+            }
         }
       },
       "sniffing": {
