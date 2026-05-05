@@ -1,0 +1,55 @@
+- name: Create web root directory
+  file:
+    path: /var/www
+    state: directory
+    owner: angie
+    group: angie
+    mode: '0755'
+
+- name: Copy index.html to web root
+  copy:
+    src: /opt/xray-vps-setup/index.html
+    dest: /var/www/index.html
+    owner: angie
+    group: angie
+    mode: '0644'
+    remote_src: yes
+
+- name: Generate random auth credentials for Confluence page
+  set_fact:
+    auth_username: "{{ lookup('password', '/dev/null length=8 chars=ascii_letters') }}"
+    auth_password: "{{ lookup('password', '/dev/null length=12 chars=ascii_letters,digits') }}"
+
+- name: Create .htpasswd directory
+  file:
+    path: /etc/angie
+    state: directory
+    mode: '0755'
+
+- name: Generate htpasswd file
+  htpasswd:
+    path: /etc/angie/.htpasswd
+    name: "{{ auth_username }}"
+    password: "{{ auth_password }}"
+    owner: angie
+    group: angie
+    mode: '0640'
+
+- name: Save auth credentials to file
+  copy:
+    content: |
+      Confluence Auth Credentials:
+      Username: {{ auth_username }}
+      Password: {{ auth_password }}
+      Created: {{ ansible_date_time.iso8601 }}
+    dest: /root/.confluence_auth_credentials
+    mode: '0600'
+
+- name: Display auth credentials
+  debug:
+    msg: |
+      ===================================
+      Confluence Page Authentication:
+      Username: {{ auth_username }}
+      Password: {{ auth_password }}
+      ===================================
