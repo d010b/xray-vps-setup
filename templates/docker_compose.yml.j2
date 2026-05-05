@@ -7,7 +7,8 @@ services:
     volumes:
       - angie-data:/var/lib/angie
       - ./angie.conf:/etc/angie/angie.conf
-      - ./index.html:/tmp/index.html
+      - /var/www/html:/var/www:ro
+      - /etc/angie/.htpasswd:/etc/angie/.htpasswd:ro  # Добавлено
 {% if setup_variant == "marzban" %}
   marzban:
     image: gozargah/marzban:latest
