@@ -90,7 +90,7 @@ http {
             proxy_set_header Connection $connection_upgrade;
             proxy_set_header X-Http-Mode "auto";
             proxy_set_header X-Http-Path $request_uri;
-            proxy_pass http://127.0.0.1:8080;
+            proxy_pass http://127.0.0.1:443;
             proxy_connect_timeout 60s;
             proxy_send_timeout 60s;
             proxy_read_timeout 60s;
@@ -100,7 +100,7 @@ http {
         }
 
 {% if setup_variant == "marzban" %}
-        # Marzban API and panel paths (без авторизации)
+        
         location ~* /({{ MARZBAN_PATH }}|statics|{{ MARZBAN_SUB_PATH }}|api|docs|redoc|openapi.json) {
             proxy_pass http://127.0.0.1:8000;
             proxy_set_header Host $host;
