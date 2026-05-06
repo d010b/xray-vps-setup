@@ -131,7 +131,7 @@ fi
 export ARCH=$(dpkg --print-architecture)
 
 yq_install() {
-  wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$ARCH -O /usr/bin/yq && chmod +x /usr/bin/yq
+  wget https://ghproxy.com/https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$ARCH -O /usr/bin/yq && chmod +x /usr/bin/yq
 }
 
 yq_install
@@ -159,7 +159,7 @@ fi
 xray_setup() {
   mkdir -p /opt/xray-vps-setup
   cd /opt/xray-vps-setup
-  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
+  wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
   if [[ "${marzban_input,,}" == "y" ]]; then
     apt install zip unzip -y 
     mkdir -p /opt/xray-vps-setup/marzban
@@ -169,39 +169,39 @@ xray_setup() {
     export MARZBAN_SUB_PATH=$(openssl rand -hex 8)
     mkdir -p /opt/xray-vps-setup/xray-core
     if [[ "$ARCH" == "amd64" ]]; then
-      wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip
+      wget -O /tmp/xray.zip https://ghproxy.com/https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip
     elif [[ "$ARCH" == "arm64" ]]; then
-      wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-arm64-v8a.zip
+      wget -O /tmp/xray.zip https://ghproxy.com/https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-arm64-v8a.zip
     fi
     unzip -qo /tmp/xray.zip -d /opt/xray-vps-setup/xray-core
-    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-marzban | envsubst > ./docker-compose.yml
-    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/marzban | envsubst > ./marzban/.env
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie-marzban" | envsubst '$VLESS_DOMAIN $MARZBAN_PATH $MARZBAN_SUB_PATH' > ./angie.conf
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./marzban/xray_config.json
+    wget -qO- https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-marzban | envsubst > ./docker-compose.yml
+    wget -qO- https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/marzban | envsubst > ./marzban/.env
+    wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie-marzban" | envsubst '$VLESS_DOMAIN $MARZBAN_PATH $MARZBAN_SUB_PATH' > ./angie.conf
+    wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./marzban/xray_config.json
   else
    mkdir -p /opt/xray-vps-setup/xray
-    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-xray | envsubst > ./docker-compose.yml
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./xray/config.json
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
+    wget -qO- https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-xray | envsubst > ./docker-compose.yml
+    wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./xray/config.json
+    wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
   fi
 }
 
 node_setup() {
   mkdir -p /opt/xray-vps-setup
   cd /opt/xray-vps-setup
-  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
+  wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
   apt install zip unzip -y
   mkdir -p ./xray-core
   if [[ "$ARCH" == "amd64" ]]; then
-    wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip
+    wget -O /tmp/xray.zip https://ghproxy.com/https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip
   elif [[ "$ARCH" == "arm64" ]]; then
-    wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-arm64-v8a.zip
+    wget -O /tmp/xray.zip https://ghproxy.com/https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-arm64-v8a.zip
   fi
   unzip -qo /tmp/xray.zip -d ./xray-core
   # Placeholder - will be replaced with panel cert by node_api_setup
   touch ./ssl_client_cert.pem
-  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-node" | envsubst > ./docker-compose.yml
-  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN' > ./angie.conf
+  wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-node" | envsubst > ./docker-compose.yml
+  wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN' > ./angie.conf
 }
 
 node_api_setup() {
@@ -370,7 +370,7 @@ else
 fi
 
 sshd_edit() {
-  wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/00-disable-password | envsubst > /etc/ssh/sshd_config.d/00-disable-password.conf
+  wget -qO- https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/00-disable-password | envsubst > /etc/ssh/sshd_config.d/00-disable-password.conf
   systemctl daemon-reload
   systemctl restart ssh
 }
@@ -463,13 +463,13 @@ replace_geo_files() {
     local target_dir=$1
     echo "Скачивание кастомных geo-файлов в $target_dir..."
     
-    if wget -qO "${target_dir}/geoip.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geoip.dat"; then
+    if wget -qO "${target_dir}/geoip.dat" "https://ghproxy.com/https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geoip.dat"; then
         echo "✓ geoip.dat заменён успешно"
     else
         echo "Ошибка замены geoip.dat"
     fi
     
-    if wget -qO "${target_dir}/geosite.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geosite.dat"; then
+    if wget -qO "${target_dir}/geosite.dat" "https://ghproxy.com/https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geosite.dat"; then
         echo "✓ geosite.dat заменён успешно"
     else
         echo "Ошибка замены geosite.dat"
