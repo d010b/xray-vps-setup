@@ -590,8 +590,7 @@ Password: $MARZBAN_PASS
         "users": [
           {
             "id": "$XRAY_UUID",
-            "encryption": "none",
-            "flow": "xtls-rprx-vision"
+            "encryption": "none"
           }
         ]
       }
@@ -657,7 +656,7 @@ EOF
     final_msg="XHTTP + Reality configuration:
 
 Clipboard string:
-vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&shortId=$XRAY_SHORTID&type=xhttp&path=/$XHTTP_PATH&mode=auto#XHTTP_$VLESS_DOMAIN
+vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&shortId=$XRAY_SHORTID&type=xhttp&path=/$XHTTP_PATH&mode=auto#XHTTP_$VLESS_DOMAIN
 
 XRay outbound config:
 $xray_config
