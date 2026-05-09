@@ -148,19 +148,31 @@ fi
 export SSH_USER=$(grep -E '^[a-z]{4,6}$' /usr/share/dict/words | shuf -n 1)
 export SSH_USER_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13; echo)
 export SSH_PORT=${input_ssh_port:-22}
+
 if [[ "$INSTALL_MODE" != "node" ]]; then
-    # Генерация REALITY ключей
-    export XRAY_PIK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 | head -n1 | cut -d' ' -f 3)
-    export XRAY_PBK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 -i $XRAY_PIK | grep "Public key:" | cut -d' ' -f 3)
+    echo "Генерация REALITY ключей..."
     
-    # Генерация идентификаторов пользователя
+    # Правильная генерация ключей (одна команда)
+    KEY_OUTPUT=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 2>/dev/null)
+    
+    if [ -z "$KEY_OUTPUT" ]; then
+        echo "Ошибка: Не удалось выполнить xray x25519"
+        exit 1
+    fi
+    
+    export XRAY_PIK=$(echo "$KEY_OUTPUT" | grep "Private key:" | awk '{print $3}')
+    export XRAY_PBK=$(echo "$KEY_OUTPUT" | grep "Public key:" | awk '{print $3}')
+    
+    if [ -z "$XRAY_PIK" ] || [ -z "$XRAY_PBK" ]; then
+        echo "❌ Ошибка: Не удалось извлечь ключи. Вывод: $KEY_OUTPUT"
+        exit 1
+    fi
+    
     export XRAY_UUID=$(docker run --rm ghcr.io/xtls/xray-core uuid)
     export XRAY_SHORTID=$(openssl rand -hex 8)
     export XHTTP_PATH=$(openssl rand -hex 8)
     
-    echo "✅ Сгенерирован UUID: $XRAY_UUID"
-    echo "✅ Сгенерирован ShortID: $XRAY_SHORTID"
-    echo "✅ Сгенерирован XHTTP Path: $XHTTP_PATH"
+    echo "Ключи REALITY и идентификаторы сгенерированы успешно"
 fi
 
 # Install marzban
