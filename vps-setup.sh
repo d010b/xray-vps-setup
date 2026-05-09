@@ -604,12 +604,11 @@ Password: $MARZBAN_PASS
       "serverName": "$VLESS_DOMAIN",
       "fingerprint": "chrome",
       "publicKey": "$XRAY_PBK",
-      "shortId": ""
+      "shortId": "$XRAY_SHORTID"
     },
     "xhttpSettings": {
       "path": "/$XHTTP_PATH",
       "mode": "auto"
-       }
     }
   }
 }
@@ -633,7 +632,7 @@ EOF
     "reality": {
       "enabled": true,
       "public_key": "$XRAY_PBK",
-      "short_id": ""
+      "short_id": "$XRAY_SHORTID"
     }
   },
   "transport": {
@@ -658,7 +657,7 @@ EOF
     final_msg="XHTTP + Reality configuration:
 
 Clipboard string:
-vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&type=xhttp&path=/$XHTTP_PATH&mode=auto#XHTTP_$VLESS_DOMAIN
+vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&flow=xtls-rprx-vision&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&shortId=$XRAY_SHORTID&type=xhttp&path=/$XHTTP_PATH&mode=auto#XHTTP_$VLESS_DOMAIN
 
 XRay outbound config:
 $xray_config
@@ -669,6 +668,7 @@ $singbox_config
 Plain data:
 PBK: $XRAY_PBK
 UUID: $XRAY_UUID
+ShortID: $XRAY_SHORTID
 XHTTP Path: /$XHTTP_PATH
     "
   fi
