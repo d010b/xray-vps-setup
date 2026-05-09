@@ -149,10 +149,18 @@ export SSH_USER=$(grep -E '^[a-z]{4,6}$' /usr/share/dict/words | shuf -n 1)
 export SSH_USER_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13; echo)
 export SSH_PORT=${input_ssh_port:-22}
 if [[ "$INSTALL_MODE" != "node" ]]; then
-  export XRAY_PIK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 | head -n1 | cut -d' ' -f 2)
-  export XRAY_PBK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 -i $XRAY_PIK | tail -2 | head -1 | cut -d' ' -f 3)
-  export XRAY_UUID=$(docker run --rm ghcr.io/xtls/xray-core uuid)
-  export XHTTP_PATH=$(openssl rand -hex 8)
+    # Генерация REALITY ключей
+    export XRAY_PIK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 | head -n1 | cut -d' ' -f 3)
+    export XRAY_PBK=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 -i $XRAY_PIK | grep "Public key:" | cut -d' ' -f 3)
+    
+    # Генерация идентификаторов пользователя
+    export XRAY_UUID=$(docker run --rm ghcr.io/xtls/xray-core uuid)
+    export XRAY_SHORTID=$(openssl rand -hex 8)
+    export XHTTP_PATH=$(openssl rand -hex 8)
+    
+    echo "✅ Сгенерирован UUID: $XRAY_UUID"
+    echo "✅ Сгенерирован ShortID: $XRAY_SHORTID"
+    echo "✅ Сгенерирован XHTTP Path: $XHTTP_PATH"
 fi
 
 # Install marzban
@@ -177,11 +185,11 @@ xray_setup() {
     wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-marzban | envsubst > ./docker-compose.yml
     wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/marzban | envsubst > ./marzban/.env
     wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie-marzban" | envsubst '$VLESS_DOMAIN $MARZBAN_PATH $MARZBAN_SUB_PATH' > ./angie.conf
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./marzban/xray_config.json
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./marzban/xray_config.json
   else
    mkdir -p /opt/xray-vps-setup/xray
     wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-xray | envsubst > ./docker-compose.yml
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst > ./xray/config.json
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./xray/config.json
     wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
   fi
 }
