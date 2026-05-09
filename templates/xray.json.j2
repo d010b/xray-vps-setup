@@ -1,20 +1,21 @@
 {
   "log": {
-    "loglevel": "info"
+    "loglevel": "warning"
   },
   "inbounds": [
     {
-      "tag": "VLESS TCP VISION REALITY",
+      "tag": "VLESS XHTTP REALITY",
       "listen": "0.0.0.0",
       "port": 443,
       "protocol": "vless",
       "settings": {
         "clients": [
-        {
-          "id": "{{ xray_uuid.stdout}}",
-          "email": "default",
-          "flow": "xtls-rprx-vision"
-        }],
+          {
+            "id": "{{ xray_uuid.stdout }}",
+            "email": "default",
+            "flow": "xtls-rprx-vision"
+          }
+        ],
         "decryption": "none"
       },
       "streamSettings": {
@@ -28,8 +29,12 @@
           ],
           "privateKey": "{{ x25519_pik.stdout }}",
           "shortIds": [
-            ""
+            "{{ xray_shortid | default('0000000000000000') }}"
           ]
+        },
+        "xhttpSettings": {
+          "path": "/{{ xray_xhttp_path | default('xhttp') }}",
+          "mode": "auto"
         }
       },
       "sniffing": {
