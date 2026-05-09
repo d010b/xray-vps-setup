@@ -12,8 +12,7 @@
         "clients": [
           {
             "id": "$XRAY_UUID",
-            "email": "default",
-            "flow": "xtls-rprx-vision"
+            "email": "default"
           }
         ],
         "decryption": "none"
