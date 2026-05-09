@@ -9,7 +9,13 @@
       "port": 443,
       "protocol": "vless",
       "settings": {
-        "clients": [],
+        "clients": [
+          {
+            "id": "$XRAY_UUID",
+            "email": "default",
+            "flow": "xtls-rprx-vision"
+          }
+        ],
         "decryption": "none"
       },
       "streamSettings": {
@@ -22,9 +28,8 @@
             "$VLESS_DOMAIN"
           ],
           "privateKey": "$XRAY_PIK",
-          "publicKey": "$XRAY_PBK",
           "shortIds": [
-            ""
+            "$XRAY_SHORTID"
           ]
         },
         "xhttpSettings": {
@@ -38,7 +43,6 @@
         "routeOnly": true
       }
     }
-   }
   ],
   "outbounds": [
     {
