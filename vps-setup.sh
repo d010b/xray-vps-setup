@@ -12,7 +12,7 @@ if [ "$EUID" -ne 0 ]
 fi
 
 # Install idn 
-apt-get update
+#apt-get update
 apt-get install idn sudo dnsutils wamerican -y 
 
 # Select install mode
