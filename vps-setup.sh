@@ -164,13 +164,10 @@ if [[ "$INSTALL_MODE" != "node" ]]; then
     echo "$KEY_OUTPUT"
     echo "---"
     
-    # Извлекаем приватный ключ (после "PrivateKey: ")
     export XRAY_PIK=$(echo "$KEY_OUTPUT" | grep "PrivateKey:" | sed 's/PrivateKey: //')
     
-    # Извлекаем публичный ключ (после "Password (PublicKey): ")
     export XRAY_PBK=$(echo "$KEY_OUTPUT" | grep "Password (PublicKey):" | sed 's/Password (PublicKey): //')
     
-    # Проверка
     if [ -z "$XRAY_PIK" ] || [ -z "$XRAY_PBK" ]; then
         echo "❌ Ошибка: Не удалось извлечь ключи REALITY"
         echo "PrivateKey получен: ${XRAY_PIK:-НЕТ}"
@@ -178,7 +175,6 @@ if [[ "$INSTALL_MODE" != "node" ]]; then
         exit 1
     fi
     
-    # Генерация остального
     export XRAY_UUID=$(docker run --rm ghcr.io/xtls/xray-core uuid)
     export XRAY_SHORTID=$(openssl rand -hex 8)
     export XHTTP_PATH=$(openssl rand -hex 8)
