@@ -33,7 +33,7 @@ http {
         return 301 https://$host$request_uri;
     }
 
-    resolver 1.1.1.1;
+    resolver 8.8.8.8 1.1.1.1 valid=30s;
 
     acme_client vless https://acme-v02.api.letsencrypt.org/directory;
 
