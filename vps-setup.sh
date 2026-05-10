@@ -152,8 +152,7 @@ export SSH_PORT=${input_ssh_port:-22}
 if [[ "$INSTALL_MODE" != "node" ]]; then
     echo "Генерация REALITY ключей..."
     
-    # Запускаем команду
-    KEY_OUTPUT=$(docker run --rm ghcr.io/xtls/xray-core:26.3.27 x25519 2>/dev/null)
+    KEY_OUTPUT=$(docker run --rm ghcr.io/xtls/xray-core:latest x25519)
     
     if [ -z "$KEY_OUTPUT" ]; then
         echo "❌ Ошибка: Не удалось выполнить xray x25519"
