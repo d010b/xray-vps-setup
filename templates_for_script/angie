@@ -83,8 +83,8 @@ http {
         location / {
             auth_basic           "Restricted Access";
             auth_basic_user_file /etc/angie/.htpasswd;
-            root /tmp;
             limit_req zone=bruteforce burst=3 nodelay;
+            root /tmp;
             index index.html;
         }
     }
