@@ -38,8 +38,10 @@ http {
     resolver 8.8.8.8;
 
     acme_client vless https://acme-v02.api.letsencrypt.org/directory;
-    limit_req_zone $binary_remote_addr zone=bruteforce:10m rate=5r/m;
     
+    limit_req_zone $binary_remote_addr zone=bruteforce:10m rate=5r/m;
+    server_tokens off;
+     
     server {
         listen                  127.0.0.1:4123 ssl default_server;
         ssl_reject_handshake    on;
