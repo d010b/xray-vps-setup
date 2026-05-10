@@ -17,6 +17,8 @@ services:
     user: root
     volumes:
       - ./xray:/etc/xray
+      - ./xray/geoip.dat:/usr/local/share/xray/geoip.dat:ro
+      - ./xray/geosite.dat:/usr/local/share/xray/geosite.dat:ro
     entrypoint: ["xray", "-config", "/etc/xray/config.json"]
 
 volumes:
