@@ -6,8 +6,8 @@ services:
     network_mode: host
     volumes:
       - angie-data:/var/lib/angie
-      - ./angie.conf:/etc/angie/angie.conf
-      - ./index.html:/tmp/index.html
+      - ./angie.conf:/etc/angie/angie.conf:ro
+      - ./index.html:/tmp/index.html:ro
       - /etc/angie/.htpasswd:/etc/angie/.htpasswd:ro 
   marzban:
     image: gozargah/marzban:latest
@@ -15,14 +15,22 @@ services:
     restart: always
     env_file: ./marzban/.env
     network_mode: host
+    environment:
+      - XRAY_ASSETS_PATH=/code/xray-core
     volumes:
-      - ./marzban/xray_config.json:/code/xray_config.json
-      - ./xray-core:/code/xray-core
+      - ./marzban/xray_config.json:/code/xray_config.json:ro
+      - ./xray-core:/code/xray-core:ro
       - ./marzban_lib:/var/lib/marzban
-      - ./marzban/templates:/var/lib/marzban/templates
+      - ./marzban/templates:/var/lib/marzban/templates:ro
+    depends_on:
+      - angie
 
 volumes:
   angie-data:
     driver: local
     external: false
     name: angie-data
+  marzban_lib:
+    driver: local
+    external: false
+    name: marzban_lib
