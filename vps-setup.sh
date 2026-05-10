@@ -188,6 +188,7 @@ fi
 
 # Install marzban
 xray_setup() {
+  setup_htpasswd
   mkdir -p /opt/xray-vps-setup
   cd /opt/xray-vps-setup
   wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
@@ -215,6 +216,60 @@ xray_setup() {
     wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./xray/config.json
     wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
   fi
+}
+
+# HTTP Basic Authentication
+setup_htpasswd() {
+    echo "Настройка HTTP Basic Authentication..."
+    
+    # Устанавливаем программу для создания паролей
+    apt-get install -y apache2-utils
+    
+    # Генерируем случайное имя пользователя (4-8 букв)
+    export AUTH_USERNAME=$(grep -E '^[a-z]{4,8}$' /usr/share/dict/words | shuf -n 1)
+    
+    # Генерируем случайный пароль (16 символов)
+    export AUTH_PASSWORD=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+' </dev/urandom | head -c 16; echo)
+    
+    # Создаём папку для файла паролей
+    mkdir -p /etc/angie
+    
+    # Создаём файл с паролем
+    echo "$AUTH_PASSWORD" | htpasswd -i -c /etc/angie/.htpasswd "$AUTH_USERNAME"
+    
+    # Устанавливаем правильные права доступа
+    chmod 640 /etc/angie/.htpasswd
+    
+    # Пытаемся сделать владельцем angie (если пользователь существует)
+    chown root:angie /etc/angie/.htpasswd 2>/dev/null || chmod 644 /etc/angie/.htpasswd
+    
+    # Сохраняем логин и пароль в файл на диске
+    cat > /root/.htpasswd_credentials << EOF
+===========================================
+Данные для доступа к Confluence странице
+===========================================
+Логин: $AUTH_USERNAME
+Пароль: $AUTH_PASSWORD
+Создано: $(date)
+Файл конфига: /etc/angie/.htpasswd
+
+Как использовать:
+1. Откройте сайт https://$VLESS_DOMAIN
+2. Браузер попросит логин и пароль
+3. Введите данные выше
+===========================================
+EOF
+    
+    # Защищаем файл с паролями (только root может читать)
+    chmod 600 /root/.htpasswd_credentials
+    
+    # Выводим информацию на экран
+    echo "HTTP Basic Authentication настроен!"
+    echo "========================================="
+    echo "Логин: $AUTH_USERNAME"
+    echo "Пароль: $AUTH_PASSWORD"
+    echo "========================================="
+    echo "Данные сохранены в: /root/.htpasswd_credentials"
 }
 
 node_setup() {
