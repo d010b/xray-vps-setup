@@ -35,10 +35,11 @@ http {
         }
     }
 
-    resolver 1.1.1.1;
+    resolver 8.8.8.8;
 
     acme_client vless https://acme-v02.api.letsencrypt.org/directory;
-
+    limit_req_zone $binary_remote_addr zone=bruteforce:10m rate=5r/m;
+    
     server {
         listen                  127.0.0.1:4123 ssl default_server;
         ssl_reject_handshake    on;
@@ -66,9 +67,16 @@ http {
 
         ssl_stapling               on;
         ssl_stapling_verify        on;
-        resolver                   1.1.1.1 valid=60s;
+        resolver                   8.8.8.8 valid=60s;
         resolver_timeout           2s;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
+        client_max_body_size 1M;
+        client_body_timeout 10s;
+        client_header_timeout 10s;
 
 {% if setup_variant == "marzban" %}
         location ~* /({{ MARZBAN_PATH }}|statics|{{ MARZBAN_SUB_PATH }}|api|docs|redoc|openapi.json) {
@@ -80,6 +88,9 @@ http {
 {% endif %}
 
         location / {
+            auth_basic           "Restricted Access";
+            auth_basic_user_file /etc/angie/.htpasswd;
+            limit_req zone=bruteforce burst=3 nodelay;
             root /tmp;
             index index.html;
         }
