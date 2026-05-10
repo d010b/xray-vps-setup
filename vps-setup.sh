@@ -186,38 +186,6 @@ if [[ "$INSTALL_MODE" != "node" ]]; then
     echo "✅ XHTTP Path: $XHTTP_PATH"
 fi
 
-# Install marzban
-xray_setup() {
-  setup_htpasswd
-  mkdir -p /opt/xray-vps-setup
-  cd /opt/xray-vps-setup
-  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
-  if [[ "${marzban_input,,}" == "y" ]]; then
-    apt install zip unzip -y 
-    mkdir -p /opt/xray-vps-setup/marzban
-    export MARZBAN_USER=$(grep -E '^[a-z]{4,6}$' /usr/share/dict/words | shuf -n 1)
-    export MARZBAN_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13; echo)
-    export MARZBAN_PATH=$(openssl rand -hex 8)
-    export MARZBAN_SUB_PATH=$(openssl rand -hex 8)
-    mkdir -p /opt/xray-vps-setup/xray-core
-    if [[ "$ARCH" == "amd64" ]]; then
-      wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip
-    elif [[ "$ARCH" == "arm64" ]]; then
-      wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-arm64-v8a.zip
-    fi
-    unzip -qo /tmp/xray.zip -d /opt/xray-vps-setup/xray-core
-    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-marzban | envsubst > ./docker-compose.yml
-    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/marzban | envsubst > ./marzban/.env
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie-marzban" | envsubst '$VLESS_DOMAIN $MARZBAN_PATH $MARZBAN_SUB_PATH' > ./angie.conf
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./marzban/xray_config.json
-  else
-   mkdir -p /opt/xray-vps-setup/xray
-    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-xray | envsubst > ./docker-compose.yml
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./xray/config.json
-    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
-  fi
-}
-
 # HTTP Basic Authentication
 setup_htpasswd() {
     echo "Настройка HTTP Basic Authentication..."
@@ -270,6 +238,59 @@ EOF
     echo "Пароль: $AUTH_PASSWORD"
     echo "========================================="
     echo "Данные сохранены в: /root/.htpasswd_credentials"
+}
+
+replace_geo_files() {
+    local target_dir=$1
+    echo "Скачивание кастомных geo-файлов в $target_dir..."
+    
+    if wget -qO "${target_dir}/geoip.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geoip.dat"; then
+        echo "✓ geoip.dat заменён успешно"
+    else
+        echo "Ошибка замены geoip.dat"
+    fi
+    
+    if wget -qO "${target_dir}/geosite.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geosite.dat"; then
+        echo "✓ geosite.dat заменён успешно"
+    else
+        echo "Ошибка замены geosite.dat"
+    fi
+}
+# Install marzban
+xray_setup() {
+  setup_htpasswd
+  mkdir -p /opt/xray-vps-setup
+  cd /opt/xray-vps-setup
+  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
+  if [[ "${marzban_input,,}" == "y" ]]; then
+    apt install zip unzip -y 
+    mkdir -p /opt/xray-vps-setup/marzban
+    export MARZBAN_USER=$(grep -E '^[a-z]{4,6}$' /usr/share/dict/words | shuf -n 1)
+    export MARZBAN_PASS=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13; echo)
+    export MARZBAN_PATH=$(openssl rand -hex 8)
+    export MARZBAN_SUB_PATH=$(openssl rand -hex 8)
+    mkdir -p /opt/xray-vps-setup/xray-core
+    if [[ "$ARCH" == "amd64" ]]; then
+      wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-64.zip
+    elif [[ "$ARCH" == "arm64" ]]; then
+      wget -O /tmp/xray.zip https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-linux-arm64-v8a.zip
+    fi
+    unzip -qo /tmp/xray.zip -d /opt/xray-vps-setup/xray-core
+    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-marzban | envsubst > ./docker-compose.yml
+    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/marzban | envsubst > ./marzban/.env
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie-marzban" | envsubst '$VLESS_DOMAIN $MARZBAN_PATH $MARZBAN_SUB_PATH' > ./angie.conf
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./marzban/xray_config.json
+  else
+   mkdir -p /opt/xray-vps-setup/xray
+    wget -qO- https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/compose-xray | envsubst > ./docker-compose.yml
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/xray_xhttp" | envsubst '$VLESS_DOMAIN $XRAY_PIK $XRAY_PBK $XRAY_UUID $XRAY_SHORTID $XHTTP_PATH' > ./xray/config.json
+    wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/angie" | envsubst '$VLESS_DOMAIN'  > ./angie.conf
+  fi
+    if [[ "${marzban_input,,}" == "y" ]]; then
+      replace_geo_files "/opt/xray-vps-setup/xray-core"
+    else
+      replace_geo_files "/opt/xray-vps-setup/xray"
+    fi
 }
 
 node_setup() {
@@ -543,23 +564,6 @@ warp_install() {
     -i $XRAY_CONFIG_WARP
     docker compose -f /opt/xray-vps-setup/docker-compose.yml down && docker compose -f /opt/xray-vps-setup/docker-compose.yml up -d
   fi
-}
-
-replace_geo_files() {
-    local target_dir=$1
-    echo "Скачивание кастомных geo-файлов в $target_dir..."
-    
-    if wget -qO "${target_dir}/geoip.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geoip.dat"; then
-        echo "✓ geoip.dat заменён успешно"
-    else
-        echo "Ошибка замены geoip.dat"
-    fi
-    
-    if wget -qO "${target_dir}/geosite.dat" "https://raw.githubusercontent.com/d010b/custom_geoip/main/filtered/geosite.dat"; then
-        echo "✓ geosite.dat заменён успешно"
-    else
-        echo "Ошибка замены geosite.dat"
-    fi
 }
 
 end_script() {
