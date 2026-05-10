@@ -50,7 +50,7 @@ bash <(wget -qO- https://github.com/legiz-ru/marz-sub/raw/main/marz-sub.sh)
 
 <strike>Caddy</strike> Angie сам получит сертификаты, поэтому нам не придется их получать через `acme.sh` или `certbot`.  
 Sing-box - да, не очень.  
-XHTTP позже, а больше не надо. Уже точно. 
+
 
 ## Связь
-Issues, PR ну или мой [тг](https://t.me/Akiyamov).
+Оригинал тут https://github.com/Akiyamov/xray-vps-setup/tree/main [тг](https://t.me/Akiyamov).
