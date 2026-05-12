@@ -189,28 +189,20 @@ fi
 setup_htpasswd() {
     echo "Настройка HTTP Basic Authentication..."
     
-    # Устанавливаем программу для создания паролей
     apt-get install -y apache2-utils
     
-    # Генерируем случайное имя пользователя (4-8 букв)
     export AUTH_USERNAME=$(grep -E '^[a-z]{4,8}$' /usr/share/dict/words | shuf -n 1)
     
-    # Генерируем случайный пароль (16 символов)
     export AUTH_PASSWORD=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+' </dev/urandom | head -c 16; echo)
     
-    # Создаём папку для файла паролей
     mkdir -p /etc/angie
     
-    # Создаём файл с паролем
     echo "$AUTH_PASSWORD" | htpasswd -i -c /etc/angie/.htpasswd "$AUTH_USERNAME"
     
-    # Устанавливаем правильные права доступа
     chmod 640 /etc/angie/.htpasswd
     
-    # Пытаемся сделать владельцем angie (если пользователь существует)
     chown root:angie /etc/angie/.htpasswd 2>/dev/null || chmod 644 /etc/angie/.htpasswd
     
-    # Сохраняем логин и пароль в файл на диске
     cat > /root/.htpasswd_credentials << EOF
 ===========================================
 Данные для доступа к Confluence странице
@@ -227,10 +219,8 @@ setup_htpasswd() {
 ===========================================
 EOF
     
-    # Защищаем файл с паролями (только root может читать)
     chmod 600 /root/.htpasswd_credentials
     
-    # Выводим информацию на экран
     echo "HTTP Basic Authentication настроен!"
     echo "========================================="
     echo "Логин: $AUTH_USERNAME"
