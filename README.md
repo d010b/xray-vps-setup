@@ -19,6 +19,8 @@ VLESS с доменом. XHttp?   MARZBAN не полностью совмест
 - - Настроит WARP для ру-сайтов.  
 ```bash
 tmux
+```
+```bash
 bash <(wget -qO- https://raw.githubusercontent.com/d010b/xray-vps-setup/main/vps-setup.sh)
 ```
 
