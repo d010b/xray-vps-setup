@@ -710,8 +710,7 @@ EOF
     final_msg="XHTTP + Reality configuration:
 
 Clipboard string:
-vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&shortId=$XRAY_SHORTID&type=xhttp&path=/$XHTTP_PATH&mode=auto#XHTTP_$VLESS_DOMAIN
-
+vless://$XRAY_UUID@$VLESS_DOMAIN:443?encryption=none&security=reality&sni=$VLESS_DOMAIN&fp=chrome&pbk=$XRAY_PBK&sid=$XRAY_SHORTID&type=xhttp&path=/$XHTTP_PATH&mode=auto#email=default
 XRay outbound config:
 $xray_config
 
