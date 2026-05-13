@@ -15,10 +15,10 @@ services:
     restart: always
     network_mode: host
     user: root
-    environment:
-      - XRAY_LOCATION_ASSET=/etc/xray
     volumes:
-      - ./xray:/etc/xray:ro
+      - ./xray/config.json:/etc/xray/config.json:ro
+      - ./xray/geoip.dat:/usr/local/share/xray/geoip.dat:ro
+      - ./xray/geosite.dat:/usr/local/share/xray/geosite.dat:ro
     entrypoint: ["xray", "-config", "/etc/xray/config.json"]
 
 volumes:
@@ -26,4 +26,3 @@ volumes:
     driver: local
     external: false
     name: angie-data
-
