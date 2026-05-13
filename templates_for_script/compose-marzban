@@ -15,11 +15,11 @@ services:
     restart: always
     env_file: ./marzban/.env
     network_mode: host
-    environment:
-      - XRAY_ASSETS_PATH=/code/xray-core
     volumes:
       - ./marzban/xray_config.json:/code/xray_config.json:ro
-      - ./xray-core:/code/xray-core:ro
+      - ./xray-core:/var/lib/marzban/xray-core:ro
+      - ./xray-core/geoip.dat:/usr/local/share/xray/geoip.dat:ro
+      - ./xray-core/geosite.dat:/usr/local/share/xray/geosite.dat:ro
       - ./marzban_lib:/var/lib/marzban
       - ./marzban/templates:/var/lib/marzban/templates:ro
     depends_on:
