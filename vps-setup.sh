@@ -285,7 +285,7 @@ xray_setup() {
 node_setup() {
   mkdir -p /opt/xray-vps-setup
   cd /opt/xray-vps-setup
-  wget -qO- "https://ghproxy.com/https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
+  wget -qO- "https://raw.githubusercontent.com/$GIT_REPO/refs/heads/$GIT_BRANCH/templates_for_script/confluence" | envsubst > ./index.html
   apt install zip unzip -y
   mkdir -p ./xray-core
   if [[ "$ARCH" == "amd64" ]]; then
