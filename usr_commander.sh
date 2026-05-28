@@ -151,13 +151,13 @@ load_config() {
         print_warning "Обнаружен Marzban режим"
     fi
 
-     Validate JSON
+     #Validate JSON
     if ! jq empty "$CONFIG" 2>/dev/null; then
         print_error "Конфиг файл содержит невалидный JSON"
         exit 1
     fi
 
-     Get the parameters
+     #Get the parameters
     DOMAIN=$(jq -r '.inbounds[0].streamSettings.realitySettings.serverNames[0]' "$CONFIG" 2>/dev/null)
     if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
         print_error "Не найден domain в конфиге"
@@ -170,7 +170,7 @@ load_config() {
         exit 1
     fi
 
-     Gen PBK
+     #Gen PBK
     PBK=$(docker run --rm ghcr.io/xtls/xray-core:latest x25519 -i "$PRIVATE_KEY" 2>/dev/null | grep -E "(PublicKey:|Password \(PublicKey\):)" | head -1 | awk '{print $NF}')
     if [ -z "$PBK" ]; then
         print_error "Не удалось сгенерировать публичный ключ"
