@@ -22,7 +22,7 @@ tmux
 ```bash
 bash <(wget -qO- https://raw.githubusercontent.com/d010b/xray-vps-setup/main/vps-setup.sh)
 ```
-- Добавление и удаление пользователей, qr код.
+- Добавление, просмотр и удаление клиентов, qr код.
 ```bash
 bash <(wget --no-cache  -qO- https://raw.githubusercontent.com/d010b/xray-vps-setup/main/usr_commander.sh)
 ```
