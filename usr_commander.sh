@@ -3,7 +3,7 @@
 # Единый скрипт V1.01 управления пользователями xray-vps-setup без marzban
 # Функции: просмотр, добавление и удаление
 
-set -e
+# set -e
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 
-export RED GREEN YELLOW BLUE NC
+# export RED GREEN YELLOW BLUE NC
 
 
 IS_MARZBAN="false"
