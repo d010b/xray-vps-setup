@@ -198,7 +198,7 @@ load_config() {
 create_vless_link() {
     local uuid="$1"
     local email="$2"
-    local encoded_name=$(url_encode "$email")
+    local encoded_email=$(url_encode "$email")
 
     local SID_PARAM=""
     if [ -n "$SID" ]; then
@@ -206,9 +206,9 @@ create_vless_link() {
     fi
 
     if [ "$NETWORK" = "xhttp" ]; then
-        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&type=xhttp&path=/$XHTTP_PATH&mode=auto$encoded_name"
+        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&type=xhttp&path=/$XHTTP_PATH&mode=auto&email=$encoded_email"
     else
-        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&flow=xtls-rprx-vision&type=tcp$encoded_name"
+        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&flow=xtls-rprx-vision&type=tcp&email=$encoded_email"
     fi
 }
 
