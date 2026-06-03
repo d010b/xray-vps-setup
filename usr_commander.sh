@@ -206,9 +206,9 @@ create_vless_link() {
     fi
 
     if [ "$NETWORK" = "xhttp" ]; then
-        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&type=xhttp&path=/$XHTTP_PATH&mode=auto&email=$encoded_email"
+        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&type=xhttp&path=/$XHTTP_PATH&mode=auto#&$encoded_email"
     else
-        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&flow=xtls-rprx-vision&type=tcp&email=$encoded_email"
+        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&flow=xtls-rprx-vision&type=tcp#&$encoded_email"
     fi
 }
 
