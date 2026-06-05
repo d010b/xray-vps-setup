@@ -192,6 +192,11 @@ load_config() {
         NETWORK="tcp"
     fi
 
+    FINGERPRINT=$(jq -r '.inbounds[0].streamSettings.realitySettings.fingerprint // "chrome"' "$CONFIG" 2>/dev/null)
+    if [ -z "$FINGERPRINT" ] || [ "$FINGERPRINT" = "null" ]; then
+    FINGERPRINT="chrome"
+    fi
+    
     CLIENTS_COUNT=$(jq '.inbounds[0].settings.clients | length' "$CONFIG" 2>/dev/null)
 }
 
@@ -206,9 +211,9 @@ create_vless_link() {
     fi
 
     if [ "$NETWORK" = "xhttp" ]; then
-        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&type=xhttp&path=/$XHTTP_PATH&mode=auto#$encoded_email"
+        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=$FINGERPRINT&pbk=$PBK${SID_PARAM}&type=xhttp&path=/$XHTTP_PATH&mode=auto#$encoded_email"
     else
-        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=chrome&pbk=$PBK${SID_PARAM}&flow=xtls-rprx-vision&type=tcp#$encoded_email"
+        echo "vless://$uuid@$DOMAIN:443?encryption=none&security=reality&sni=$DOMAIN&fp=$FINGERPRINT&pbk=$PBK${SID_PARAM}&flow=xtls-rprx-vision&type=tcp#$encoded_email"
     fi
 }
 
