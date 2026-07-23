@@ -710,7 +710,7 @@ vless_generate_internal_link() {
 # ПОЛУЧЕНИЕ ПАРАМЕТРОВ КОНФИГУРАЦИИ ИЗ JSON
 # ----------------------------------------------------------------------------
 vless_parse_config_params() {
-    local config_file="$1"
+ local config_file="$1"
     
     if [ ! -f "$config_file" ]; then
         print_error "Файл конфигурации не найден: $config_file"
@@ -732,67 +732,37 @@ vless_parse_config_params() {
     # ============================================================
     # ПОЛУЧЕНИЕ ПАРАМЕТРОВ ИЗ НАЙДЕННОГО INBOUND
     # ============================================================
-    case "$NETWORK" in
-    ws|httpupgrade)
-        HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.${NETWORK}Settings.host // \"\"" "$config_file" 2>/dev/null)
-        ;;
-    xhttp)
-        HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.host // \"\"" "$config_file" 2>/dev/null)
-        ;;
-    tcp)
-        HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.tcpSettings.header.request.headers.Host // \"\"" "$config_file" 2>/dev/null)
-        ;;
-esac
-[ "$HOST" = "null" ] && HOST=""
-
-    # DOMAIN для отображения - берем из realitySettings.serverNames или dest
-    DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // .inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // \"\"" "$config_file" 2>/dev/null)
-    if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
-        # Если это dest в формате "domain:port", берем только домен
-        DOMAIN=$(echo "$DOMAIN" | cut -d':' -f1)
-    else
-        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen" "$config_file" 2>/dev/null | sed 's/^"//;s/"$//')
-    fi
-
-    SERVER_ADDR=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
-if [ -z "$SERVER_ADDR" ]; then
-    SERVER_ADDR=$(curl -s ifconfig.me 2>/dev/null || echo "127.0.0.1")
-fi
-
-    # SNI_DOMAIN для ссылки - берем из serverNames[0] (приоритет)
-SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$CONFIG" 2>/dev/null)
-
-if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName // empty" "$CONFIG" 2>/dev/null)
-fi
-
-if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-    # Берем из dest
-    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$CONFIG" 2>/dev/null | cut -d':' -f1)
-fi
-
-# Если все еще пусто - используем DOMAIN (НЕ IP!)
-if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-    SNI_DOMAIN="$DOMAIN"
-fi
-
-# Финальная проверка - если IP, то предупреждение
-if [[ "$SNI_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    print_warning "ВНИМАНИЕ: SNI_DOMAIN определен как IP ($SNI_DOMAIN)"
-    print_warning "Для Reality рекомендуется использовать домен!"
-fi
-
+    
+    # PORT - берем реальный порт из конфига
     PORT=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port // 443" "$config_file" 2>/dev/null)
-if [ -z "$PORT" ] || [ "$PORT" = "null" ]; then
-    PORT=443
-fi
-
-    # Private Key
-    PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey // \"\"" "$config_file" 2>/dev/null)
-    if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "null" ]; then
-        print_error "Не найден privateKey в конфиге"
-        return 1
+    if [ -z "$PORT" ] || [ "$PORT" = "null" ]; then
+        PORT=443
     fi
+    
+    # DOMAIN для отображения - берем из realitySettings.serverNames[0]
+    DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
+        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // \"\"" "$config_file" 2>/dev/null | cut -d':' -f1)
+    fi
+    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
+        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen // \"127.0.0.1\"" "$config_file" 2>/dev/null)
+    fi
+    
+    # SERVER_ADDR - ВАЖНО: используем реальный внешний IP сервера
+    SERVER_ADDR=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
+    if [ -z "$SERVER_ADDR" ]; then
+        SERVER_ADDR=$(curl -s ifconfig.me 2>/dev/null || echo "127.0.0.1")
+    fi
+    
+    # SNI_DOMAIN - для TLS SNI (должен быть домен из serverNames)
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$config_file" 2>/dev/null)
+    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$config_file" 2>/dev/null | cut -d':' -f1)
+    fi
+    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+        SNI_DOMAIN="$DOMAIN"
+    fi
+    
     
     # Генерация публичного ключа
     PBK=$(docker run --rm ghcr.io/xtls/xray-core:latest x25519 -i "$PRIVATE_KEY" 2>/dev/null | grep -E "(PublicKey:|Password \(PublicKey\):)" | head -1 | awk '{print $NF}')
