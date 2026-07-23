@@ -732,26 +732,26 @@ vless_parse_config_params() {
     # ПОЛУЧЕНИЕ ПАРАМЕТРОВ ИЗ НАЙДЕННОГО INBOUND
     # ============================================================
     
-    # Domain для отображения
-    DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0]" "$config_file" 2>/dev/null)
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
-        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName" "$config_file" 2>/dev/null)
-    fi
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
+    # DOMAIN для отображения - берем из realitySettings.serverNames или dest
+    DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // .inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // \"\"" "$config_file" 2>/dev/null)
+    if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
+        # Если это dest в формате "domain:port", берем только домен
+        DOMAIN=$(echo "$DOMAIN" | cut -d':' -f1)
+    else
         DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen" "$config_file" 2>/dev/null | sed 's/^"//;s/"$//')
     fi
     
-    # SNI для ссылки
-    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0]" "$config_file" 2>/dev/null)
+    # SNI_DOMAIN для ссылки - берем из serverNames[0] (приоритет)
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName" "$config_file" 2>/dev/null)
+        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // \"\"" "$config_file" 2>/dev/null | cut -d':' -f1)
     fi
     if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
         SNI_DOMAIN="$DOMAIN"
     fi
     
     # Private Key
-    PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey" "$config_file" 2>/dev/null)
+    PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "null" ]; then
         print_error "Не найден privateKey в конфиге"
         return 1
@@ -764,8 +764,8 @@ vless_parse_config_params() {
         return 1
     fi
     
-    # Short ID
-    SID=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.shortIds[0]" "$config_file" 2>/dev/null)
+    # Short ID - берем из realitySettings.shortIds[0]
+    SID=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.shortIds[0] // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$SID" ] || [ "$SID" = "null" ]; then
         SID=""
     fi
@@ -774,14 +774,8 @@ vless_parse_config_params() {
     # ПАРАМЕТРЫ ТРАНСПОРТА (из VLESS inbound)
     # ============================================================
     
-    # XHTTP Path
-    XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path" "$config_file" 2>/dev/null | sed 's|^/||')
-    if [ -z "$XHTTP_PATH" ] || [ "$XHTTP_PATH" = "null" ]; then
-        XHTTP_PATH=""
-    fi
-    
-    # NETWORK - теперь берется из VLESS inbound!
-    NETWORK=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.network" "$config_file" 2>/dev/null)
+    # NETWORK
+    NETWORK=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.network // \"tcp\"" "$config_file" 2>/dev/null)
     if [ -z "$NETWORK" ] || [ "$NETWORK" = "null" ]; then
         NETWORK="tcp"
     fi
@@ -802,13 +796,31 @@ vless_parse_config_params() {
         AUTHORITY=""
     fi
     
-    # Fingerprint
+    # XHTTP Path - для xhttp транспорта
+    XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
+    if [ -z "$XHTTP_PATH" ] || [ "$XHTTP_PATH" = "null" ]; then
+        XHTTP_PATH=""
+    fi
+    
+    # XHTTP Mode
+    MODE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.mode // \"auto\"" "$config_file" 2>/dev/null)
+    if [ -z "$MODE" ] || [ "$MODE" = "null" ]; then
+        MODE="auto"
+    fi
+    
+    # SpiderX - берем из realitySettings.spiderX
+    SPIDERX=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.spiderX // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$SPIDERX" ] || [ "$SPIDERX" = "null" ]; then
+        SPIDERX=""
+    fi
+    
+    # Fingerprint - берем из realitySettings.fingerprint (если есть)
     FINGERPRINT=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.fingerprint // \"chrome\"" "$config_file" 2>/dev/null)
     if [ -z "$FINGERPRINT" ] || [ "$FINGERPRINT" = "null" ]; then
         FINGERPRINT="chrome"
     fi
     
-    # Flow
+    # Flow - берем из settings.clients[0].flow
     FLOW=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].settings.clients[0].flow // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$FLOW" ] || [ "$FLOW" = "null" ]; then
         FLOW=""
@@ -818,6 +830,24 @@ vless_parse_config_params() {
     CLIENTS_COUNT=$(jq ".inbounds[$VLESS_INBOUND_INDEX].settings.clients | length" "$config_file" 2>/dev/null)
     if [ -z "$CLIENTS_COUNT" ] || [ "$CLIENTS_COUNT" = "null" ]; then
         CLIENTS_COUNT=0
+    fi
+    
+    # Дополнительные параметры
+    ALPN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.alpn // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$ALPN" ] || [ "$ALPN" = "null" ]; then
+        ALPN=""
+    fi
+    
+    # Finalmask
+    FINALMASK=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.finalmask // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$FINALMASK" ] || [ "$FINALMASK" = "null" ]; then
+        FINALMASK=""
+    fi
+    
+    # XHTTP Extra
+    XHTTP_EXTRA=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.extra // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$XHTTP_EXTRA" ] || [ "$XHTTP_EXTRA" = "null" ]; then
+        XHTTP_EXTRA=""
     fi
     
     return 0
@@ -834,11 +864,18 @@ create_vless_link() {
         return 1
     fi
     
-   local port=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port" "$CONFIG" 2>/dev/null)
-if [ -z "$port" ] || [ "$port" = "null" ]; then
-    port=443
-fi
-local cmd="vless_generate_link \"$uuid\" \"$DOMAIN\" $port"
+    local port=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port" "$CONFIG" 2>/dev/null)
+    if [ -z "$port" ] || [ "$port" = "null" ]; then
+        port=443
+    fi
+    
+    # Для gRPC используем домен из serverNames, а не IP
+    local address="$SNI_DOMAIN"
+    if [ -z "$address" ] || [ "$address" = "null" ]; then
+        address="$DOMAIN"
+    fi
+    
+    local cmd="vless_generate_link \"$uuid\" \"$address\" $port"
     
     # Базовые параметры
     cmd="$cmd --remarks \"$email\""
@@ -892,7 +929,7 @@ local cmd="vless_generate_link \"$uuid\" \"$DOMAIN\" $port"
                 cmd="$cmd --service-name \"$SERVICE_NAME\""
             fi
             if [ -n "$GRPC_MODE" ]; then
-            cmd="$cmd --grpc-mode \"$GRPC_MODE\""
+                cmd="$cmd --grpc-mode \"$GRPC_MODE\""
             fi
             if [ -n "$AUTHORITY" ]; then
                 cmd="$cmd --authority \"$AUTHORITY\""
@@ -941,26 +978,6 @@ local cmd="vless_generate_link \"$uuid\" \"$DOMAIN\" $port"
     # Добавление alpn если есть
     if [ -n "$ALPN" ]; then
         cmd="$cmd --alpn \"$ALPN\""
-    fi
-    
-    # Добавление ech если есть
-    if [ -n "$ECH" ]; then
-        cmd="$cmd --ech \"$ECH\""
-    fi
-    
-    # Добавление vcn если есть
-    if [ -n "$VCN" ]; then
-        cmd="$cmd --vcn \"$VCN\""
-    fi
-    
-    # Добавление pcs если есть
-    if [ -n "$PCS" ]; then
-        cmd="$cmd --pcs \"$PCS\""
-    fi
-    
-    # Добавление MLDSA65 verify если есть
-    if [ -n "$MLDSA65_VERIFY" ]; then
-        cmd="$cmd --mldsa65-verify \"$MLDSA65_VERIFY\""
     fi
     
     # Выполнение команды
