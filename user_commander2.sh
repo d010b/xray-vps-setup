@@ -34,6 +34,8 @@ NETWORK="tcp"
 FLOW="xtls-rprx-vision"
 FINGERPRINT="chrome"
 CLIENTS_COUNT=0
+SNI_DOMAIN=""
+VLESS_INBOUND_INDEX=0
 
 # Дополнительные параметры для расширенной конфигурации
 XHTTP_EXTRA=""
@@ -714,78 +716,112 @@ vless_parse_config_params() {
         return 1
     fi
     
-    # Получение параметров из конфига
-    DOMAIN=$(jq -r '.inbounds[0].streamSettings.realitySettings.serverNames[0]' "$config_file" 2>/dev/null)
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
-        DOMAIN=$(jq -r '.inbounds[0].streamSettings.realitySettings.serverName' "$config_file" 2>/dev/null)
-    fi
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
-        print_error "Не найден domain в конфиге"
+    # ============================================================
+    # НАЙТИ INBOUND С ПРОТОКОЛОМ VLESS
+    # ============================================================
+    VLESS_INBOUND_INDEX=$(jq -r '.inbounds | to_entries[] | select(.value.protocol == "vless") | .key' "$config_file" 2>/dev/null | head -1)
+    
+    if [ -z "$VLESS_INBOUND_INDEX" ] || [ "$VLESS_INBOUND_INDEX" = "null" ]; then
+        print_error "Не найден inbound с протоколом vless"
         return 1
     fi
-
-    PRIVATE_KEY=$(jq -r '.inbounds[0].streamSettings.realitySettings.privateKey' "$config_file" 2>/dev/null)
+    
+    print_info "Найден VLESS inbound с индексом: $VLESS_INBOUND_INDEX"
+    
+    # ============================================================
+    # ПОЛУЧЕНИЕ ПАРАМЕТРОВ ИЗ НАЙДЕННОГО INBOUND
+    # ============================================================
+    
+    # Domain для отображения
+    DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0]" "$config_file" 2>/dev/null)
+    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
+        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName" "$config_file" 2>/dev/null)
+    fi
+    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
+        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen" "$config_file" 2>/dev/null | sed 's/^"//;s/"$//')
+    fi
+    
+    # SNI для ссылки
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0]" "$config_file" 2>/dev/null)
+    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName" "$config_file" 2>/dev/null)
+    fi
+    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+        SNI_DOMAIN="$DOMAIN"
+    fi
+    
+    # Private Key
+    PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey" "$config_file" 2>/dev/null)
     if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "null" ]; then
         print_error "Не найден privateKey в конфиге"
         return 1
     fi
-
+    
     # Генерация публичного ключа
     PBK=$(docker run --rm ghcr.io/xtls/xray-core:latest x25519 -i "$PRIVATE_KEY" 2>/dev/null | grep -E "(PublicKey:|Password \(PublicKey\):)" | head -1 | awk '{print $NF}')
     if [ -z "$PBK" ]; then
         print_error "Не удалось сгенерировать публичный ключ"
         return 1
     fi
-
-    SID=$(jq -r '.inbounds[0].streamSettings.realitySettings.shortIds[0]' "$config_file" 2>/dev/null)
+    
+    # Short ID
+    SID=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.shortIds[0]" "$config_file" 2>/dev/null)
     if [ -z "$SID" ] || [ "$SID" = "null" ]; then
         SID=""
     fi
-
-    # Получение параметров транспорта
-    XHTTP_PATH=$(jq -r '.inbounds[0].streamSettings.xhttpSettings.path' "$config_file" 2>/dev/null | sed 's|^/||')
+    
+    # ============================================================
+    # ПАРАМЕТРЫ ТРАНСПОРТА (из VLESS inbound)
+    # ============================================================
+    
+    # XHTTP Path
+    XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path" "$config_file" 2>/dev/null | sed 's|^/||')
     if [ -z "$XHTTP_PATH" ] || [ "$XHTTP_PATH" = "null" ]; then
         XHTTP_PATH=""
     fi
-
-    NETWORK=$(jq -r '.inbounds[0].streamSettings.network' "$config_file" 2>/dev/null)
+    
+    # NETWORK - теперь берется из VLESS inbound!
+    NETWORK=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.network" "$config_file" 2>/dev/null)
     if [ -z "$NETWORK" ] || [ "$NETWORK" = "null" ]; then
         NETWORK="tcp"
     fi
-    SERVICE_NAME=$(jq -r '.inbounds[0].streamSettings.grpcSettings.serviceName // ""' "$config_file" 2>/dev/null)
+    
+    # gRPC параметры
+    SERVICE_NAME=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.grpcSettings.serviceName // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$SERVICE_NAME" ] || [ "$SERVICE_NAME" = "null" ]; then
         SERVICE_NAME=""
     fi
-
-    GRPC_MODE=$(jq -r '.inbounds[0].streamSettings.grpcSettings.mode // "gun"' "$config_file" 2>/dev/null)
+    
+    GRPC_MODE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.grpcSettings.mode // \"gun\"" "$config_file" 2>/dev/null)
     if [ -z "$GRPC_MODE" ] || [ "$GRPC_MODE" = "null" ]; then
-    GRPC_MODE="gun"
+        GRPC_MODE="gun"
     fi
-
-    AUTHORITY=$(jq -r '.inbounds[0].streamSettings.grpcSettings.authority // ""' "$config_file" 2>/dev/null)
+    
+    AUTHORITY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.grpcSettings.authority // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$AUTHORITY" ] || [ "$AUTHORITY" = "null" ]; then
-    AUTHORITY=""
+        AUTHORITY=""
     fi
-
-    FINGERPRINT=$(jq -r '.inbounds[0].streamSettings.realitySettings.fingerprint // "chrome"' "$config_file" 2>/dev/null)
+    
+    # Fingerprint
+    FINGERPRINT=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.fingerprint // \"chrome\"" "$config_file" 2>/dev/null)
     if [ -z "$FINGERPRINT" ] || [ "$FINGERPRINT" = "null" ]; then
         FINGERPRINT="chrome"
     fi
-
-    # Получение flow
-    FLOW=$(jq -r '.inbounds[0].settings.clients[0].flow // ""' "$config_file" 2>/dev/null)
+    
+    # Flow
+    FLOW=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].settings.clients[0].flow // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$FLOW" ] || [ "$FLOW" = "null" ]; then
-    FLOW=""
+        FLOW=""
     fi
-
-    CLIENTS_COUNT=$(jq '.inbounds[0].settings.clients | length' "$config_file" 2>/dev/null)
+    
+    # Количество клиентов
+    CLIENTS_COUNT=$(jq ".inbounds[$VLESS_INBOUND_INDEX].settings.clients | length" "$config_file" 2>/dev/null)
     if [ -z "$CLIENTS_COUNT" ] || [ "$CLIENTS_COUNT" = "null" ]; then
         CLIENTS_COUNT=0
     fi
     
     return 0
 }
-
 # ----------------------------------------------------------------------------
 # ГЕНЕРАЦИЯ VLESS ССЫЛКИ НА ОСНОВЕ КОНФИГУРАЦИИ
 # ----------------------------------------------------------------------------
@@ -798,13 +834,17 @@ create_vless_link() {
         return 1
     fi
     
-    local cmd="vless_generate_link \"$uuid\" \"$DOMAIN\" 443"
+   local port=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port" "$CONFIG" 2>/dev/null)
+if [ -z "$port" ] || [ "$port" = "null" ]; then
+    port=443
+fi
+local cmd="vless_generate_link \"$uuid\" \"$DOMAIN\" $port"
     
     # Базовые параметры
     cmd="$cmd --remarks \"$email\""
     cmd="$cmd --encryption \"none\""
     cmd="$cmd --security \"reality\""
-    cmd="$cmd --sni \"$DOMAIN\""
+    cmd="$cmd --sni \"$SNI_DOMAIN\""
     cmd="$cmd --fp \"$FINGERPRINT\""
     cmd="$cmd --public-key \"$PBK\""
     
@@ -1083,14 +1123,14 @@ show_users_table() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     local idx=1
-    while IFS='|' read -r email uuid; do
-        email=${email:-"no-email"}
-        uuid=${uuid:-"no-uuid"}
-        printf "  %-3s │ %-30s │ %-36s\n" "$idx" "$email" "$uuid"
-        user_emails["$idx"]="$email"
-        user_uuids["$idx"]="$uuid"
-        ((idx++))
-    done < <(jq -r '.inbounds[0].settings.clients[] | "\(.email)|\(.id)"' "$CONFIG" 2>/dev/null)
+while IFS='|' read -r email uuid; do
+    email=${email:-"no-email"}
+    uuid=${uuid:-"no-uuid"}
+    printf "  %-3s │ %-30s │ %-36s\n" "$idx" "$email" "$uuid"
+    user_emails["$idx"]="$email"
+    user_uuids["$idx"]="$uuid"
+    ((idx++))
+done < <(jq -r ".inbounds[$VLESS_INBOUND_INDEX].settings.clients[] | \"\(.email)|\(.id)\"" "$CONFIG" 2>/dev/null)
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -1126,7 +1166,7 @@ show_user_details() {
     local internal_link=$(vless_generate_internal_link "$uuid" "$DOMAIN" 443 \
         --remarks "$email" \
         --security "reality" \
-        --sni "$DOMAIN" \
+        --sni "$SNI_DOMAIN" \
         --fp "$FINGERPRINT" \
         --public-key "$PBK" \
         ${SID:+--short-id "$SID"} \
@@ -1182,17 +1222,17 @@ select_single_user() {
     declare -a select_uuids
     local idx=1
 
-    while IFS='|' read -r email uuid; do
-        email=${email:-"no-email"}
-        uuid=${uuid:-"no-uuid"}
+while IFS='|' read -r email uuid; do
+    email=${email:-"no-email"}
+    uuid=${uuid:-"no-uuid"}
 
-        if [ "$uuid" != "no-uuid" ] && [ ${#uuid} -ge 30 ]; then
-            echo -e "  ${BLUE}$idx)${NC} $email"
-            select_emails+=("$email")
-            select_uuids+=("$uuid")
-            ((idx++))
-        fi
-    done < <(jq -r '.inbounds[0].settings.clients[] | "\(.email)|\(.id)"' "$CONFIG" 2>/dev/null)
+    if [ "$uuid" != "no-uuid" ] && [ ${#uuid} -ge 30 ]; then
+        echo -e "  ${BLUE}$idx)${NC} $email"
+        select_emails+=("$email")
+        select_uuids+=("$uuid")
+        ((idx++))
+    fi
+done < <(jq -r ".inbounds[$VLESS_INBOUND_INDEX].settings.clients[] | \"\(.email)|\(.id)\"" "$CONFIG" 2>/dev/null)
 
     if [ ${#select_emails[@]} -eq 0 ]; then
         print_error "Нет валидных пользователей"
@@ -1246,7 +1286,7 @@ add_user() {
             continue
         fi
 
-        if jq -e ".inbounds[0].settings.clients[] | select(.email == \"$USER_EMAIL\")" "$CONFIG" > /dev/null 2>&1; then
+        if jq -e ".inbounds[$VLESS_INBOUND_INDEX].settings.clients[] | select(.email == \"$USER_EMAIL\")" "$CONFIG" > /dev/null 2>&1; then
             print_error "Пользователь с Name '$USER_EMAIL' уже существует!"
             continue
         fi
@@ -1294,7 +1334,7 @@ fi
     # Добавление пользователя
     print_info "Добавление нового пользователя в конфиг..."
     TMP_FILE=$(mktemp)
-    jq ".inbounds[0].settings.clients += [$NEW_CLIENT]" "$CONFIG" > "$TMP_FILE"
+    jq ".inbounds[$VLESS_INBOUND_INDEX].settings.clients += [$NEW_CLIENT]" "$CONFIG" > "$TMP_FILE"
 
     if [ $? -eq 0 ] && [ -s "$TMP_FILE" ]; then
         mv "$TMP_FILE" "$CONFIG"
@@ -1353,16 +1393,16 @@ delete_user() {
     local idx=1
 
     # Получение всех пользователей
-    while IFS='|' read -r email uuid; do
-        email=${email:-"no-email"}
-        uuid=${uuid:-"no-uuid"}
+while IFS='|' read -r email uuid; do
+    email=${email:-"no-email"}
+    uuid=${uuid:-"no-uuid"}
 
-        if [ "$uuid" != "no-uuid" ] && [ ${#uuid} -ge 30 ]; then
-            delete_emails+=("$email")
-            delete_uuids+=("$uuid")
-            ((idx++))
-        fi
-    done < <(jq -r '.inbounds[0].settings.clients[] | "\(.email)|\(.id)"' "$CONFIG" 2>/dev/null)
+    if [ "$uuid" != "no-uuid" ] && [ ${#uuid} -ge 30 ]; then
+        delete_emails+=("$email")
+        delete_uuids+=("$uuid")
+        ((idx++))
+    fi
+done < <(jq -r ".inbounds[$VLESS_INBOUND_INDEX].settings.clients[] | \"\(.email)|\(.id)\"" "$CONFIG" 2>/dev/null)
 
     # Проверка пользователей
     if [ ${#delete_emails[@]} -eq 0 ]; then
@@ -1419,7 +1459,7 @@ delete_user() {
             # Удаление пользователя
             print_info "Удаление пользователя..."
             TMP_FILE=$(mktemp)
-            jq "del(.inbounds[0].settings.clients[] | select(.email == \"$selected_email\"))" "$CONFIG" > "$TMP_FILE"
+            jq "del(.inbounds[$VLESS_INBOUND_INDEX].settings.clients[] | select(.email == \"$selected_email\"))" "$CONFIG" > "$TMP_FILE"
 
             if [ $? -eq 0 ] && [ -s "$TMP_FILE" ]; then
                 mv "$TMP_FILE" "$CONFIG"
