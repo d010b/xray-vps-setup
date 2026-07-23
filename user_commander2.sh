@@ -35,6 +35,7 @@ FLOW="xtls-rprx-vision"
 FINGERPRINT="chrome"
 CLIENTS_COUNT=0
 SNI_DOMAIN=""
+SERVER_ADDR=""
 VLESS_INBOUND_INDEX=0
 
 # Дополнительные параметры для расширенной конфигурации
@@ -742,13 +743,13 @@ vless_parse_config_params() {
     fi
     
     # SNI_DOMAIN для ссылки - берем из serverNames[0] (приоритет)
-    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // \"\"" "$config_file" 2>/dev/null)
-    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // \"\"" "$config_file" 2>/dev/null | cut -d':' -f1)
-    fi
-    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-        SNI_DOMAIN="$DOMAIN"
-    fi
+SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0]" "$config_file" 2>/dev/null)
+if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName" "$config_file" 2>/dev/null)
+fi
+if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+    SNI_DOMAIN="$SERVER_ADDR"
+fi
     
     # Private Key
     PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey // \"\"" "$config_file" 2>/dev/null)
@@ -864,10 +865,8 @@ create_vless_link() {
         return 1
     fi
     
-    local port=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port" "$CONFIG" 2>/dev/null)
-    if [ -z "$port" ] || [ "$port" = "null" ]; then
-        port=443
-    fi
+    # Используем SERVER_ADDR (IP) для ссылки
+    local cmd="vless_generate_link \"$uuid\" \"$SERVER_ADDR\" $PORT"
     
     # Для gRPC используем домен из serverNames, а не IP
     local address="$SNI_DOMAIN"
