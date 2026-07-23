@@ -732,7 +732,19 @@ vless_parse_config_params() {
     # ============================================================
     # ПОЛУЧЕНИЕ ПАРАМЕТРОВ ИЗ НАЙДЕННОГО INBOUND
     # ============================================================
-    
+    case "$NETWORK" in
+    ws|httpupgrade)
+        HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.${NETWORK}Settings.host // \"\"" "$config_file" 2>/dev/null)
+        ;;
+    xhttp)
+        HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.host // \"\"" "$config_file" 2>/dev/null)
+        ;;
+    tcp)
+        HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.tcpSettings.header.request.headers.Host // \"\"" "$config_file" 2>/dev/null)
+        ;;
+esac
+[ "$HOST" = "null" ] && HOST=""
+
     # DOMAIN для отображения - берем из realitySettings.serverNames или dest
     DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // .inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // \"\"" "$config_file" 2>/dev/null)
     if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
@@ -741,16 +753,23 @@ vless_parse_config_params() {
     else
         DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen" "$config_file" 2>/dev/null | sed 's/^"//;s/"$//')
     fi
-    
-    # SNI_DOMAIN для ссылки - берем из serverNames[0] (приоритет)
-SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0]" "$config_file" 2>/dev/null)
-if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName" "$config_file" 2>/dev/null)
+
+    SERVER_ADDR=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
+if [ -z "$SERVER_ADDR" ]; then
+    SERVER_ADDR=$(curl -s ifconfig.me 2>/dev/null || echo "127.0.0.1")
 fi
+
+    # SNI_DOMAIN для ссылки - берем из serverNames[0] (приоритет)
+SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[] // .inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName // empty" "$config_file" 2>/dev/null | head -1)
 if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
     SNI_DOMAIN="$SERVER_ADDR"
 fi
-    
+
+    PORT=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port // 443" "$config_file" 2>/dev/null)
+if [ -z "$PORT" ] || [ "$PORT" = "null" ]; then
+    PORT=443
+fi
+
     # Private Key
     PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$PRIVATE_KEY" ] || [ "$PRIVATE_KEY" = "null" ]; then
@@ -796,12 +815,25 @@ fi
     if [ -z "$AUTHORITY" ] || [ "$AUTHORITY" = "null" ]; then
         AUTHORITY=""
     fi
-    
+
+    ALLOW_INSECURE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.allowInsecure // false" "$config_file" 2>/dev/null)
+if [ "$ALLOW_INSECURE" = "true" ] || [ "$ALLOW_INSECURE" = "1" ]; then
+    ALLOW_INSECURE="1"
+else
+    ALLOW_INSECURE=""
+fi
     # XHTTP Path - для xhttp транспорта
-    XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
-    if [ -z "$XHTTP_PATH" ] || [ "$XHTTP_PATH" = "null" ]; then
+case "$NETWORK" in
+    xhttp)
+        XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
+        ;;
+    ws|httpupgrade)
+        XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.${NETWORK}Settings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
+        ;;
+    *)
         XHTTP_PATH=""
-    fi
+        ;;
+esac
     
     # XHTTP Mode
     MODE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.mode // \"auto\"" "$config_file" 2>/dev/null)
@@ -874,7 +906,8 @@ create_vless_link() {
         address="$DOMAIN"
     fi
     
-    local cmd="vless_generate_link \"$uuid\" \"$address\" $port"
+[ -z "$PORT" ] && PORT=443
+local cmd="vless_generate_link \"$uuid\" \"$address\" $PORT"
     
     # Базовые параметры
     cmd="$cmd --remarks \"$email\""
@@ -915,9 +948,14 @@ create_vless_link() {
             ;;
         ws|httpupgrade)
             cmd="$cmd --type \"$NETWORK\""
-            if [ -n "$XHTTP_PATH" ]; then
-                cmd="$cmd --path \"/$XHTTP_PATH\""
-            fi
+if [ -n "$XHTTP_PATH" ]; then
+    # Если путь уже начинается с /, не добавляем его
+    if [[ "$XHTTP_PATH" =~ ^/ ]]; then
+        cmd="$cmd --path \"$XHTTP_PATH\""
+    else
+        cmd="$cmd --path \"/$XHTTP_PATH\""
+    fi
+fi
             if [ -n "$HOST" ]; then
                 cmd="$cmd --host \"$HOST\""
             fi
