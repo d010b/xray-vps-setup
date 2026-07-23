@@ -1101,28 +1101,32 @@ generate_qr() {
 # УПРАВЛЕНИЕ КОНФИГУРАЦИЕЙ
 # ----------------------------------------------------------------------------
 get_config_path() {
-    local config=""
-    if [ -n "$XRAY_CONFIG_PATH" ] && [ -f "$XRAY_CONFIG_PATH" ]; then
-        config="$XRAY_CONFIG_PATH"
-        IS_MARZBAN="false"
-        print_info "Используется кастомный путь: $config"
-        echo "$config"
-        return
+    # Проверка переменной
+    [ -n "$XRAY_CONFIG_PATH" ] && [ -f "$XRAY_CONFIG_PATH" ] && { echo "$XRAY_CONFIG_PATH"; return; }
+    
+    # Проверка Docker
+    if command -v docker &>/dev/null && docker ps 2>/dev/null | grep -q "xray"; then
+        local c=$(docker ps --format "{{.Names}}" | grep -E "xray|xray-core" | head -1)
+        [ -n "$c" ] && {
+            # Пробуем найти конфиг в контейнере
+            local f=$(docker exec "$c" find / -name "config.json" 2>/dev/null | head -1)
+            [ -n "$f" ] && {
+                local tmp="/tmp/xray_config_$$.json"
+                docker cp "$c:$f" "$tmp" 2>/dev/null && { echo "$tmp"; return; }
+            }
+            # Или в смонтированных томах
+            local m=$(docker inspect "$c" --format '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' 2>/dev/null | grep -E "config\.json|xray\.json" | head -1)
+            [ -f "$m" ] && { echo "$m"; return; }
+        }
     fi
-    if [ -f "/opt/xray-vps-setup/xray/config.json" ]; then
-        config="/opt/xray-vps-setup/xray/config.json"
-        IS_MARZBAN="false"
-    elif [ -f "/opt/xray-vps-setup/marzban/xray_config.json" ]; then
-        config="/opt/xray-vps-setup/marzban/xray_config.json"
-        IS_MARZBAN="true"
-    elif [ -f "/var/lib/marzban/configs/xray_config.json" ]; then
-        config="/var/lib/marzban/configs/xray_config.json"
-        IS_MARZBAN="true"
-    else
-        print_error "Конфиг не найден"
-        exit 1
-    fi
-    echo "$config"
+    
+    # Поиск по стандартным путям
+    for p in "/opt/reality-ezpz/engine.conf" "/opt/xray-vps-setup/xray/config.json" "/etc/xray/config.json"; do
+        [ -f "$p" ] && jq -e '.inbounds[] | select(.protocol=="vless")' "$p" >/dev/null 2>&1 && { echo "$p"; return; }
+    done
+    
+    echo ""
+    return 1
 }
 
 restart_xray() {
