@@ -760,9 +760,26 @@ if [ -z "$SERVER_ADDR" ]; then
 fi
 
     # SNI_DOMAIN для ссылки - берем из serverNames[0] (приоритет)
-SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[] // .inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName // empty" "$config_file" 2>/dev/null | head -1)
+SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$CONFIG" 2>/dev/null)
+
 if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-    SNI_DOMAIN="$SERVER_ADDR"
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverName // empty" "$CONFIG" 2>/dev/null)
+fi
+
+if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+    # Берем из dest
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$CONFIG" 2>/dev/null | cut -d':' -f1)
+fi
+
+# Если все еще пусто - используем DOMAIN (НЕ IP!)
+if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
+    SNI_DOMAIN="$DOMAIN"
+fi
+
+# Финальная проверка - если IP, то предупреждение
+if [[ "$SNI_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    print_warning "ВНИМАНИЕ: SNI_DOMAIN определен как IP ($SNI_DOMAIN)"
+    print_warning "Для Reality рекомендуется использовать домен!"
 fi
 
     PORT=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].port // 443" "$config_file" 2>/dev/null)
