@@ -752,6 +752,20 @@ vless_parse_config_params() {
     if [ -z "$NETWORK" ] || [ "$NETWORK" = "null" ]; then
         NETWORK="tcp"
     fi
+    SERVICE_NAME=$(jq -r '.inbounds[0].streamSettings.grpcSettings.serviceName // ""' "$config_file" 2>/dev/null)
+    if [ -z "$SERVICE_NAME" ] || [ "$SERVICE_NAME" = "null" ]; then
+        SERVICE_NAME=""
+    fi
+
+    GRPC_MODE=$(jq -r '.inbounds[0].streamSettings.grpcSettings.mode // "gun"' "$config_file" 2>/dev/null)
+    if [ -z "$GRPC_MODE" ] || [ "$GRPC_MODE" = "null" ]; then
+    GRPC_MODE="gun"
+    fi
+
+    AUTHORITY=$(jq -r '.inbounds[0].streamSettings.grpcSettings.authority // ""' "$config_file" 2>/dev/null)
+    if [ -z "$AUTHORITY" ] || [ "$AUTHORITY" = "null" ]; then
+    AUTHORITY=""
+    fi
 
     FINGERPRINT=$(jq -r '.inbounds[0].streamSettings.realitySettings.fingerprint // "chrome"' "$config_file" 2>/dev/null)
     if [ -z "$FINGERPRINT" ] || [ "$FINGERPRINT" = "null" ]; then
@@ -759,9 +773,9 @@ vless_parse_config_params() {
     fi
 
     # Получение flow
-    FLOW=$(jq -r '.inbounds[0].settings.clients[0].flow // "xtls-rprx-vision"' "$config_file" 2>/dev/null)
+    FLOW=$(jq -r '.inbounds[0].settings.clients[0].flow // ""' "$config_file" 2>/dev/null)
     if [ -z "$FLOW" ] || [ "$FLOW" = "null" ]; then
-        FLOW="xtls-rprx-vision"
+    FLOW=""
     fi
 
     CLIENTS_COUNT=$(jq '.inbounds[0].settings.clients | length' "$config_file" 2>/dev/null)
@@ -838,7 +852,7 @@ create_vless_link() {
                 cmd="$cmd --service-name \"$SERVICE_NAME\""
             fi
             if [ -n "$GRPC_MODE" ]; then
-                cmd="$cmd --grpc-mode \"$GRPC_MODE\""
+            cmd="$cmd --grpc-mode \"$GRPC_MODE\""
             fi
             if [ -n "$AUTHORITY" ]; then
                 cmd="$cmd --authority \"$AUTHORITY\""
@@ -1117,7 +1131,8 @@ show_user_details() {
         --public-key "$PBK" \
         ${SID:+--short-id "$SID"} \
         ${FLOW:+--flow "$FLOW"} \
-        ${NETWORK:+--type "$NETWORK"} \
+        --type "$NETWORK" \
+        ${SERVICE_NAME:+--service-name "$SERVICE_NAME"} \
         ${XHTTP_PATH:+--path "/$XHTTP_PATH"} \
         ${FINALMASK:+--finalmask "$FINALMASK"} \
         2>/dev/null)
@@ -1255,18 +1270,26 @@ add_user() {
     print_success "Резервная копия создана: $BACKUP_FILE"
 
     # Создание нового пользователя
-    if [ "$NETWORK" = "xhttp" ]; then
+   if [ "$NETWORK" = "xhttp" ]; then
+    NEW_CLIENT="{
+        \"id\": \"$NEW_UUID\",
+        \"email\": \"$USER_EMAIL\"
+    }"
+else
+    # Для gRPC и других транспортов - добавляем flow только если он есть
+    if [ -n "$FLOW" ]; then
         NEW_CLIENT="{
             \"id\": \"$NEW_UUID\",
-            \"email\": \"$USER_EMAIL\"
+            \"email\": \"$USER_EMAIL\",
+            \"flow\": \"$FLOW\"
         }"
     else
         NEW_CLIENT="{
             \"id\": \"$NEW_UUID\",
-            \"email\": \"$USER_EMAIL\",
-            \"flow\": \"${FLOW:-xtls-rprx-vision}\"
+            \"email\": \"$USER_EMAIL\"
         }"
     fi
+fi
 
     # Добавление пользователя
     print_info "Добавление нового пользователя в конфиг..."
