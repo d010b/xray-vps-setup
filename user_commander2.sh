@@ -740,67 +740,28 @@ vless_parse_config_params() {
     fi
     
     # ============================================================
-    # ОПРЕДЕЛЕНИЕ ТИПА БЕЗОПАСНОСТИ
-    # ============================================================
-    SECURITY_TYPE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.security // \"\"" "$config_file" 2>/dev/null)
-    if [ -z "$SECURITY_TYPE" ] || [ "$SECURITY_TYPE" = "null" ]; then
-        SECURITY_TYPE="none"
-    fi
-    
-    # ============================================================
     # 1. SNI_DOMAIN - для TLS/Reality handshake
     # ============================================================
-    SNI_DOMAIN=""
-    
-    # Пробуем получить из realitySettings
-    if [ "$SECURITY_TYPE" = "reality" ]; then
-        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$config_file" 2>/dev/null)
-        if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-            SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$config_file" 2>/dev/null | cut -d':' -f1)
-        fi
-    fi
-    
-    # Пробуем получить из tlsSettings
+    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$config_file" 2>/dev/null)
     if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.tlsSettings.serverName // empty" "$config_file" 2>/dev/null)
-    fi
-    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.tlsSettings.sni // empty" "$config_file" 2>/dev/null)
+        SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$config_file" 2>/dev/null | cut -d':' -f1)
     fi
     
     # ============================================================
-    # 2. DOMAIN - для отображения в интерфейсе
+    # 2. DOMAIN - для отображения
     # ============================================================
-    DOMAIN=""
-    
-    # Пробуем получить из serverNames
-    DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$config_file" 2>/dev/null)
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
-        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$config_file" 2>/dev/null | cut -d':' -f1)
-    fi
-    
-    # Пробуем получить из tlsSettings
-    if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
-        DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.tlsSettings.serverName // empty" "$config_file" 2>/dev/null)
-    fi
-    
-    # Если ничего нет, берем listen
+    DOMAIN="$SNI_DOMAIN"
     if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "null" ]; then
         DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen // \"127.0.0.1\"" "$config_file" 2>/dev/null)
     fi
     
-    # Если SNI_DOMAIN не найден, используем DOMAIN
-    if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
-        SNI_DOMAIN="$DOMAIN"
-    fi
-    
     # ============================================================
-    # 3. SERVER_ADDR - РЕАЛЬНЫЙ АДРЕС ДЛЯ ПОДКЛЮЧЕНИЯ
+    # 3. SERVER_ADDR - РЕАЛЬНЫЙ IP ДЛЯ ПОДКЛЮЧЕНИЯ
     # ============================================================
     LISTEN_ADDR=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen // \"\"" "$config_file" 2>/dev/null)
     
     if [ -z "$LISTEN_ADDR" ] || [ "$LISTEN_ADDR" = "null" ] || [ "$LISTEN_ADDR" = "0.0.0.0" ] || [ "$LISTEN_ADDR" = "::" ]; then
-        # Если listen = 0.0.0.0 или не задан, определяем внешний IP
+        # Определяем внешний IP
         SERVER_ADDR=$(curl -s -4 ifconfig.me 2>/dev/null || curl -s -4 icanhazip.com 2>/dev/null)
         if [ -z "$SERVER_ADDR" ]; then
             SERVER_ADDR=$(hostname -I | awk '{print $1}' 2>/dev/null)
@@ -816,105 +777,100 @@ vless_parse_config_params() {
     fi
     
     # ============================================================
-    # 4. ОПРЕДЕЛЕНИЕ СЦЕНАРИЯ ИСПОЛЬЗОВАНИЯ
+    # 4. ПРОВЕРКА СООТВЕТСТВИЯ SNI И IP
     # ============================================================
     
-    # Проверяем, является ли SNI_DOMAIN IP-адресом
-    IS_SNI_IP=false
-    if [[ "$SNI_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ "$SNI_DOMAIN" =~ ^[0-9a-fA-F:]+$ ]]; then
-        IS_SNI_IP=true
+    # Пытаемся разрешить SNI_DOMAIN в IP
+    SNI_RESOLVED_IP=""
+    if command -v dig &> /dev/null; then
+        SNI_RESOLVED_IP=$(dig +short "$SNI_DOMAIN" A 2>/dev/null | head -1)
+    elif command -v nslookup &> /dev/null; then
+        SNI_RESOLVED_IP=$(nslookup "$SNI_DOMAIN" 2>/dev/null | grep -E "Address: [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | head -1 | awk '{print $2}')
+    elif command -v host &> /dev/null; then
+        SNI_RESOLVED_IP=$(host "$SNI_DOMAIN" 2>/dev/null | grep "has address" | head -1 | awk '{print $4}')
     fi
     
-    # Проверяем, совпадает ли SNI_DOMAIN с SERVER_ADDR
-    if [ "$SNI_DOMAIN" = "$SERVER_ADDR" ] || [ "$IS_SNI_IP" = true ]; then
+    # Проверяем совпадение
+    if [ -n "$SNI_RESOLVED_IP" ] && [ "$SNI_RESOLVED_IP" = "$SERVER_ADDR" ]; then
         SNI_MATCHES_SERVER=true
+        print_info "SNI домен ($SNI_DOMAIN) резолвится в IP ($SERVER_ADDR) - СВОЙ ДОМЕН"
+    elif [ "$SNI_DOMAIN" = "$SERVER_ADDR" ]; then
+        SNI_MATCHES_SERVER=true
+        print_info "SNI совпадает с IP - СВОЙ ДОМЕН"
     else
         SNI_MATCHES_SERVER=false
-    fi
-    
-    # Определяем сценарий
-    if [ "$SECURITY_TYPE" = "reality" ] && [ "$SNI_MATCHES_SERVER" = false ]; then
-        SCENARIO="reality_foreign_domain"
-        print_info "Сценарий: Reality с чужим доменом ($SNI_DOMAIN)"
-    elif [ "$SECURITY_TYPE" = "reality" ] && [ "$SNI_MATCHES_SERVER" = true ]; then
-        SCENARIO="reality_own_domain"
-        print_info "Сценарий: Reality со своим доменом ($SNI_DOMAIN)"
-    elif [ "$SECURITY_TYPE" = "tls" ] && [ "$SNI_MATCHES_SERVER" = false ]; then
-        SCENARIO="tls_foreign_domain"
-        print_info "Сценарий: TLS с чужим доменом ($SNI_DOMAIN)"
-    elif [ "$SECURITY_TYPE" = "tls" ] && [ "$SNI_MATCHES_SERVER" = true ]; then
-        SCENARIO="tls_own_domain"
-        print_info "Сценарий: TLS со своим доменом ($SNI_DOMAIN)"
-    else
-        SCENARIO="no_tls"
-        print_info "Сценарий: Без TLS (чистый VLESS)"
+        print_info "SNI домен ($SNI_DOMAIN) НЕ резолвится в IP ($SERVER_ADDR) - ЧУЖОЙ ДОМЕН"
     fi
     
     # ============================================================
-    # 5. ВЫБОР АДРЕСА ДЛЯ VLESS ССЫЛКИ
+    # 5. ОПРЕДЕЛЕНИЕ ТИПА БЕЗОПАСНОСТИ
+    # ============================================================
+    SECURITY_TYPE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.security // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$SECURITY_TYPE" ] || [ "$SECURITY_TYPE" = "null" ]; then
+        SECURITY_TYPE="none"
+    fi
+    
+    # ============================================================
+    # 6. ОПРЕДЕЛЕНИЕ СЦЕНАРИЯ
+    # ============================================================
+    
+    if [ "$SECURITY_TYPE" = "reality" ] && [ "$SNI_MATCHES_SERVER" = false ]; then
+        SCENARIO="reality_foreign_domain"
+        print_info "Сценарий: Reality с чужим доменом"
+    elif [ "$SECURITY_TYPE" = "reality" ] && [ "$SNI_MATCHES_SERVER" = true ]; then
+        SCENARIO="reality_own_domain"
+        print_info "Сценарий: Reality со своим доменом"
+    elif [ "$SECURITY_TYPE" = "tls" ]; then
+        SCENARIO="tls_own_domain"
+        print_info "Сценарий: TLS со своим доменом"
+    else
+        SCENARIO="no_tls"
+        print_info "Сценарий: Без TLS"
+    fi
+    
+    # ============================================================
+    # 7. ВЫБОР АДРЕСА ДЛЯ VLESS ССЫЛКИ
     # ============================================================
     
     case "$SCENARIO" in
         reality_foreign_domain)
-            # Reality с чужим доменом: используем IP для подключения
+            # Чужой домен: используем IP для подключения
             VLESS_ADDRESS="$SERVER_ADDR"
-            USE_SNI_FOR_CONNECTION=false
+            print_info "Используем IP для подключения (чужой домен)"
             ;;
         reality_own_domain|tls_own_domain)
-            # Свой домен: можно использовать домен для подключения
-            if [[ "$SNI_DOMAIN" != *"."* ]] || [[ "$SNI_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                # SNI_DOMAIN - это IP, используем IP
-                VLESS_ADDRESS="$SERVER_ADDR"
-                USE_SNI_FOR_CONNECTION=false
-            else
-                # SNI_DOMAIN - это домен, используем его
-                VLESS_ADDRESS="$SNI_DOMAIN"
-                USE_SNI_FOR_CONNECTION=true
-            fi
-            ;;
-        tls_foreign_domain)
-            # TLS с чужим доменом: используем IP
-            VLESS_ADDRESS="$SERVER_ADDR"
-            USE_SNI_FOR_CONNECTION=false
-            ;;
-        no_tls)
-            # Без TLS: используем IP
-            VLESS_ADDRESS="$SERVER_ADDR"
-            USE_SNI_FOR_CONNECTION=false
+            # Свой домен: используем домен для подключения
+            VLESS_ADDRESS="$SNI_DOMAIN"
+            print_info "Используем домен для подключения (свой домен)"
             ;;
         *)
-            # Fallback: используем IP
             VLESS_ADDRESS="$SERVER_ADDR"
-            USE_SNI_FOR_CONNECTION=false
+            print_info "Используем IP для подключения (без TLS)"
             ;;
     esac
     
-    print_info "Адрес для подключения: $VLESS_ADDRESS"
-    print_info "SNI для TLS: $SNI_DOMAIN"
-    print_info "Тип безопасности: $SECURITY_TYPE"
-    print_info "Совпадает SNI с адресом: $SNI_MATCHES_SERVER"
-    
     # ============================================================
-    # 6. ПРИВАТНЫЙ КЛЮЧ И ПУБЛИЧНЫЙ КЛЮЧ
+    # 8. ПРИВАТНЫЙ КЛЮЧ И ПУБЛИЧНЫЙ КЛЮЧ
     # ============================================================
     
-    # Получаем приватный ключ из конфига
     PRIVATE_KEY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.privateKey // \"\"" "$config_file" 2>/dev/null)
     
-    # Генерируем публичный ключ
-    if [ -n "$PRIVATE_KEY" ] && [ "$PRIVATE_KEY" != "null" ]; then
+    if [ -n "$PRIVATE_KEY" ] && [ "$PRIVATE_KEY" != "null" ] && [ "$PRIVATE_KEY" != "" ]; then
         PBK=$(echo "$PRIVATE_KEY" | docker run --rm -i ghcr.io/xtls/xray-core:latest x25519 -i - 2>/dev/null | grep -E "(PublicKey:|Password \(PublicKey\):)" | head -1 | awk '{print $NF}')
         if [ -z "$PBK" ]; then
-            print_warning "Не удалось сгенерировать публичный ключ из приватного"
+            PBK=$(docker run --rm ghcr.io/xtls/xray-core:latest x25519 -i "$PRIVATE_KEY" 2>/dev/null | grep -E "(PublicKey:|Password \(PublicKey\):)" | head -1 | awk '{print $NF}')
+        fi
+        if [ -z "$PBK" ]; then
+            print_warning "Не удалось сгенерировать публичный ключ"
             PBK=""
         fi
     else
+        print_warning "Приватный ключ не найден"
         PBK=""
-        print_warning "Приватный ключ не найден в конфигурации"
     fi
     
     # ============================================================
-    # 7. SHORT ID
+    # 9. SHORT ID
     # ============================================================
     SID=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.shortIds[0] // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$SID" ] || [ "$SID" = "null" ]; then
@@ -922,7 +878,7 @@ vless_parse_config_params() {
     fi
     
     # ============================================================
-    # 8. ПАРАМЕТРЫ ТРАНСПОРТА
+    # 10. ОСТАЛЬНЫЕ ПАРАМЕТРЫ ТРАНСПОРТА
     # ============================================================
     
     # NETWORK
@@ -945,31 +901,6 @@ vless_parse_config_params() {
     AUTHORITY=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.grpcSettings.authority // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$AUTHORITY" ] || [ "$AUTHORITY" = "null" ]; then
         AUTHORITY=""
-    fi
-    
-    # XHTTP Path
-    case "$NETWORK" in
-        xhttp)
-            XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
-            ;;
-        ws|httpupgrade)
-            XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.${NETWORK}Settings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
-            ;;
-        *)
-            XHTTP_PATH=""
-            ;;
-    esac
-    
-    # XHTTP Mode
-    MODE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.mode // \"auto\"" "$config_file" 2>/dev/null)
-    if [ -z "$MODE" ] || [ "$MODE" = "null" ]; then
-        MODE="auto"
-    fi
-    
-    # SpiderX
-    SPIDERX=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.spiderX // \"\"" "$config_file" 2>/dev/null)
-    if [ -z "$SPIDERX" ] || [ "$SPIDERX" = "null" ]; then
-        SPIDERX=""
     fi
     
     # Fingerprint
@@ -1016,7 +947,13 @@ vless_parse_config_params() {
         ALLOW_INSECURE=""
     fi
     
-    # HOST для WS/HTTPUpgrade
+    # SpiderX
+    SPIDERX=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.spiderX // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$SPIDERX" ] || [ "$SPIDERX" = "null" ]; then
+        SPIDERX=""
+    fi
+    
+    # HOST
     HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.wsSettings.host // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$HOST" ] || [ "$HOST" = "null" ]; then
         HOST=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.httpupgradeSettings.host // \"\"" "$config_file" 2>/dev/null)
@@ -1025,13 +962,32 @@ vless_parse_config_params() {
         HOST=""
     fi
     
-    # HEADER_TYPE для TCP/KCP
+    # HEADER_TYPE
     HEADER_TYPE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.tcpSettings.header.type // \"\"" "$config_file" 2>/dev/null)
     if [ -z "$HEADER_TYPE" ] || [ "$HEADER_TYPE" = "null" ]; then
         HEADER_TYPE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.kcpSettings.header.type // \"\"" "$config_file" 2>/dev/null)
     fi
     if [ -z "$HEADER_TYPE" ] || [ "$HEADER_TYPE" = "null" ]; then
         HEADER_TYPE=""
+    fi
+    
+    # XHTTP Path
+    case "$NETWORK" in
+        xhttp)
+            XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
+            ;;
+        ws|httpupgrade)
+            XHTTP_PATH=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.${NETWORK}Settings.path // \"\"" "$config_file" 2>/dev/null | sed 's|^/||')
+            ;;
+        *)
+            XHTTP_PATH=""
+            ;;
+    esac
+    
+    # XHTTP Mode
+    MODE=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.xhttpSettings.mode // \"auto\"" "$config_file" 2>/dev/null)
+    if [ -z "$MODE" ] || [ "$MODE" = "null" ]; then
+        MODE="auto"
     fi
     
     # SEED для KCP
@@ -1046,9 +1002,31 @@ vless_parse_config_params() {
         MTU=""
     fi
     
+    # ============================================================
+    # ВЫВОД ИНФОРМАЦИИ
+    # ============================================================
+    
+    print_success "Конфигурация загружена:"
+    print_info "  Inbound: $VLESS_INBOUND_INDEX"
+    print_info "  Порт: $PORT"
+    print_info "  SNI: $SNI_DOMAIN"
+    print_info "  IP сервера: $SERVER_ADDR"
+    print_info "  Адрес для ссылки: $VLESS_ADDRESS"
+    print_info "  Транспорт: $NETWORK"
+    if [ -n "$SERVICE_NAME" ]; then
+        print_info "  gRPC Service: $SERVICE_NAME"
+    fi
+    if [ -n "$PBK" ]; then
+        print_info "  Публичный ключ: ${PBK:0:20}..."
+    fi
+    if [ -n "$SID" ]; then
+        print_info "  Short ID: $SID"
+    fi
+    print_info "  Пользователей: $CLIENTS_COUNT"
+    print_info "  Сценарий: $SCENARIO"
+    
     return 0
 }
-
 # ----------------------------------------------------------------------------
 # ГЕНЕРАЦИЯ VLESS ССЫЛКИ НА ОСНОВЕ КОНФИГУРАЦИИ
 # ----------------------------------------------------------------------------
