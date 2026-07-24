@@ -749,13 +749,23 @@ vless_parse_config_params() {
     fi
     
     # SERVER_ADDR - ВАЖНО: используем реальный внешний IP сервера
-    SERVER_ADDR=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
-    if [ -z "$SERVER_ADDR" ]; then
-        SERVER_ADDR=$(curl -s ifconfig.me 2>/dev/null || echo "127.0.0.1")
+    SERVER_ADDR=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].listen // \"\"" "$config_file" 2>/dev/null)
+    if [ -z "$SERVER_ADDR" ] || [ "$SERVER_ADDR" = "null" ] || [ "$SERVER_ADDR" = "0.0.0.0" ] || [ "$SERVER_ADDR" = "::" ]; then
+        # Если listen = 0.0.0.0, берем внешний IP
+        SERVER_ADDR=$(curl -s -4 ifconfig.me 2>/dev/null || curl -s -4 icanhazip.com 2>/dev/null)
+        if [ -z "$SERVER_ADDR" ]; then
+            SERVER_ADDR=$(hostname -I | awk '{print $1}' 2>/dev/null)
+        fi
+        if [ -z "$SERVER_ADDR" ]; then
+            SERVER_ADDR=$(ip route get 1 | awk '{print $NF;exit}' 2>/dev/null)
+        fi
+    fi
+    if [ -z "$SERVER_ADDR" ] || [ "$SERVER_ADDR" = "null" ]; then
+        SERVER_ADDR="127.0.0.1"
     fi
     
     # SNI_DOMAIN - для TLS SNI (должен быть домен из serverNames)
-    SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$config_file" 2>/dev/null)
+   SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.serverNames[0] // empty" "$config_file" 2>/dev/null)
     if [ -z "$SNI_DOMAIN" ] || [ "$SNI_DOMAIN" = "null" ]; then
         SNI_DOMAIN=$(jq -r ".inbounds[$VLESS_INBOUND_INDEX].streamSettings.realitySettings.dest // empty" "$config_file" 2>/dev/null | cut -d':' -f1)
     fi
@@ -875,7 +885,7 @@ esac
 # ----------------------------------------------------------------------------
 # ГЕНЕРАЦИЯ VLESS ССЫЛКИ НА ОСНОВЕ КОНФИГУРАЦИИ
 # ----------------------------------------------------------------------------
-create_vless_link() {
+ccreate_vless_link() {
     local uuid="$1"
     local email="$2"
     
@@ -884,17 +894,13 @@ create_vless_link() {
         return 1
     fi
     
-    # Используем SERVER_ADDR (IP) для ссылки
-    local cmd="vless_generate_link \"$uuid\" \"$SERVER_ADDR\" $PORT"
-    
-    # Для gRPC используем домен из serverNames, а не IP
-    local address="$SNI_DOMAIN"
+    # Используем РЕАЛЬНЫЙ IP сервера для подключения
+    local address="$SERVER_ADDR"
     if [ -z "$address" ] || [ "$address" = "null" ]; then
         address="$DOMAIN"
     fi
     
-[ -z "$PORT" ] && PORT=443
-local cmd="vless_generate_link \"$uuid\" \"$address\" $PORT"
+    local cmd="vless_generate_link \"$uuid\" \"$address\" $PORT"
     
     # Базовые параметры
     cmd="$cmd --remarks \"$email\""
@@ -904,49 +910,55 @@ local cmd="vless_generate_link \"$uuid\" \"$address\" $PORT"
     cmd="$cmd --fp \"$FINGERPRINT\""
     cmd="$cmd --public-key \"$PBK\""
     
-    # Добавление short-id если есть
     if [ -n "$SID" ]; then
         cmd="$cmd --short-id \"$SID\""
     fi
     
-    # Добавление spiderx если есть
     if [ -n "$SPIDERX" ]; then
         cmd="$cmd --spiderx \"$SPIDERX\""
     fi
     
-    # Добавление flow если есть
     if [ -n "$FLOW" ]; then
         cmd="$cmd --flow \"$FLOW\""
     fi
     
-    # Транспортные параметры
+    # Формируем extra JSON (для xhttp и finalmask)
+    local extra_json="{}"
+    
     case "$NETWORK" in
         xhttp)
             cmd="$cmd --type \"xhttp\""
+            
+            # Очищаем путь
             if [ -n "$XHTTP_PATH" ]; then
-                cmd="$cmd --path \"/$XHTTP_PATH\""
+                local clean_path=$(echo "$XHTTP_PATH" | sed 's|^/||' | sed 's|/$||')
+                cmd="$cmd --path \"$clean_path\""
             fi
+            
             if [ -n "$MODE" ]; then
                 cmd="$cmd --mode \"$MODE\""
             fi
+            
+            # Добавляем XHTTP extra если есть
             if [ -n "$XHTTP_EXTRA" ]; then
-                cmd="$cmd --extra \"$XHTTP_EXTRA\""
+                # Проверяем, что это валидный JSON
+                if echo "$XHTTP_EXTRA" | jq -e . >/dev/null 2>&1; then
+                    extra_json=$(echo "$extra_json" | jq ".xhttp = $XHTTP_EXTRA" 2>/dev/null)
+                fi
             fi
             ;;
+            
         ws|httpupgrade)
             cmd="$cmd --type \"$NETWORK\""
-if [ -n "$XHTTP_PATH" ]; then
-    # Если путь уже начинается с /, не добавляем его
-    if [[ "$XHTTP_PATH" =~ ^/ ]]; then
-        cmd="$cmd --path \"$XHTTP_PATH\""
-    else
-        cmd="$cmd --path \"/$XHTTP_PATH\""
-    fi
-fi
+            if [ -n "$XHTTP_PATH" ]; then
+                local clean_path=$(echo "$XHTTP_PATH" | sed 's|^/||' | sed 's|/$||')
+                cmd="$cmd --path \"$clean_path\""
+            fi
             if [ -n "$HOST" ]; then
                 cmd="$cmd --host \"$HOST\""
             fi
             ;;
+            
         grpc)
             cmd="$cmd --type \"grpc\""
             if [ -n "$SERVICE_NAME" ]; then
@@ -959,6 +971,7 @@ fi
                 cmd="$cmd --authority \"$AUTHORITY\""
             fi
             ;;
+            
         kcp)
             cmd="$cmd --type \"kcp\""
             if [ -n "$HEADER_TYPE" ]; then
@@ -971,40 +984,60 @@ fi
                 cmd="$cmd --mtu \"$MTU\""
             fi
             ;;
+            
         tcp|raw)
-            cmd="$cmd --type \"$NETWORK\""
+            cmd="$cmd --type \"tcp\""
             if [ -n "$HEADER_TYPE" ] && [ "$HEADER_TYPE" = "http" ]; then
                 cmd="$cmd --header-type \"$HEADER_TYPE\""
             fi
             if [ -n "$XHTTP_PATH" ]; then
-                cmd="$cmd --path \"$XHTTP_PATH\""
+                local clean_path=$(echo "$XHTTP_PATH" | sed 's|^/||' | sed 's|/$||')
+                cmd="$cmd --path \"$clean_path\""
             fi
             if [ -n "$HOST" ]; then
                 cmd="$cmd --host \"$HOST\""
             fi
             ;;
-        *)
-            # По умолчанию tcp
-            cmd="$cmd --type \"tcp\""
-            ;;
     esac
     
-    # Добавление finalmask если есть
+    # ============================================================
+    # ВАЖНО: Добавляем finalmask в extra JSON
+    # ============================================================
     if [ -n "$FINALMASK" ]; then
-        cmd="$cmd --finalmask \"$FINALMASK\""
+        # Проверяем, что FINALMASK - валидный JSON
+        if echo "$FINALMASK" | jq -e . >/dev/null 2>&1; then
+            # Добавляем finalmask в extra объект
+            if [ "$extra_json" = "{}" ]; then
+                extra_json="{\"finalmask\": $FINALMASK}"
+            else
+                extra_json=$(echo "$extra_json" | jq ".finalmask = $FINALMASK" 2>/dev/null)
+            fi
+        else
+            print_warning "FINALMASK не является валидным JSON, пропускаем"
+        fi
     fi
     
-    # Добавление allow-insecure если есть
+    # Добавляем extra JSON в команду если не пустой
+    if [ "$extra_json" != "{}" ]; then
+        # Проверяем, что получился валидный JSON
+        if echo "$extra_json" | jq -e . >/dev/null 2>&1; then
+            cmd="$cmd --extra '$extra_json'"
+        else
+            print_warning "Сформирован невалидный extra JSON: $extra_json"
+        fi
+    fi
+    
+    # Allow insecure
     if [ -n "$ALLOW_INSECURE" ] && [ "$ALLOW_INSECURE" = "1" ]; then
         cmd="$cmd --allow-insecure"
     fi
     
-    # Добавление alpn если есть
+    # ALPN
     if [ -n "$ALPN" ]; then
         cmd="$cmd --alpn \"$ALPN\""
     fi
     
-    # Выполнение команды
+    # Выполнение
     eval "$cmd"
 }
 
